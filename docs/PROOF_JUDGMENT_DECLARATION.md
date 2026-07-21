@@ -19,6 +19,8 @@ EvalDossier starts from a deliberately modest principle:
 
 > Keeping an assessment basis machine-readable and signed is a necessary condition for disciplined automation, not proof that the declared basis is honest or sufficient.
 
+That principle implies **evidentiary non-escalation** at every normalization boundary: an adapter may preserve or weaken an upstream result's declared evidentiary strength, but it must not strengthen that result without additional evidence. Serialization, normalization, and a new signature can improve integrity and interoperability. They cannot, by themselves, convert a model judgment into a formal predicate result or a party's assertion into an independent observation.
+
 EvalDossier does not rank assessment methods by prestige. It keeps the declared method explicit and rejects protocol combinations that would silently promote ineligible bases. It cannot detect an evaluator that dishonestly labels the method it used without replay or stronger proof.
 
 ## Three results that only look alike
@@ -154,6 +156,25 @@ assessment
 The implications do not run automatically. `AFFIRMED` is not `ESTABLISHED_TRUE`. `ESTABLISHED_TRUE` is not necessarily `SATISFIED`; an obligation can contain several criteria or a different aggregation policy. `SATISFIED` is not automatically `RELEASE`; the economic policy may include time windows, caps, appeals, or no automated payment action at all.
 
 EvalDossier v0.1 fixes economic action to `OUT_OF_SCOPE`. It produces portable evidence and typed conclusions, not payment instructions. A future settlement adapter may consume an obligation verdict under a separately agreed policy, but it should not be able to erase the basis and limitations that produced it.
+
+## Related work and scope boundary
+
+EvalDossier shares foundational boundaries with adjacent work. In particular, cryptographic integrity is not factual truth, and offline verification of a signature does not by itself establish the signer's institutional identity, independence, or authority. This project does not claim those principles as novel. Its specific focus is how they constrain the normalization and downstream use of heterogeneous AI-agent evaluation results.
+
+The [Trust over IP Verifiable Dossiers draft](https://trustoverip.github.io/kswg-dossier-specification/) defines the data model, lifecycle, and verification semantics for cryptographically attested collections of evidence structured as Authentic Chained Data Containers (ACDCs) in the KERI ecosystem. It expressly distinguishes attestation to a dossier's integrity and composition from attestation to the veracity of claims inside the evidence. EvalDossier shares that evidentiary boundary but does not implement the ToIP specification, KERI, ACDC, CESR, key-event logs, dossier revocation, or its curator and issuer roles. EvalDossier instead defines evaluator-specific protocol objects, claim-scoped assessment bases, basis-eligibility rules, obligation aggregation, and portable normalization across heterogeneous evaluators.
+
+South et al. package zero-knowledge computational proofs of model evaluation into *verifiable evaluation attestations* in [“Verifiable evaluations of machine learning models using zkSNARKs”](https://arxiv.org/abs/2402.02675). That work cryptographically proves a defined model computation over bound inputs. EvalDossier's current verifier does not prove evaluator execution. It verifies the integrity and internal semantics of declared evaluation artifacts and keeps replay or a cryptographic proof of execution as a separate evidentiary layer. A future `CRYPTOGRAPHIC_PROOF` basis could describe such a layer without collapsing it into the transport format itself.
+
+[Vouchsafe](https://arxiv.org/abs/2601.02254) constructs a self-contained, offline-verifiable identity and capability graph from signed, content-addressed statements. It addresses identity, delegation, revocation, and capability resolution without online infrastructure. EvalDossier also supports local verification from presented data, but it deliberately leaves signer trust unpinned and does not provide an identity, delegation, or revocation substrate. Its graph binds evaluator requests, evidence, profiles, attestations, and declared semantics rather than resolving authority from a capability graph.
+
+Against that background, EvalDossier's design focus is narrower:
+
+1. assessment basis is mandatory, claim-scoped, and signed;
+2. adapters follow evidentiary non-escalation—preserve or weaken, never strengthen without additional evidence;
+3. `assessment`, `predicateStatus`, `obligationVerdict`, and economic action remain separate layers whose implications do not run automatically; and
+4. heterogeneous evaluator results can be normalized into a portable dossier without erasing their original evidentiary limits.
+
+These are protocol design choices and implementation boundaries, not a claim of academic priority. The cited systems solve adjacent problems and may supply evidence or trust mechanisms that a future integration could reference without being replaced by EvalDossier.
 
 ## Protocol consequences
 

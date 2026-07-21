@@ -10,6 +10,8 @@ EvalDossier is a settlement-independent TypeScript SDK and reference implementat
 
 Conceptual rationale: **[Supported by What?](./docs/PROOF_JUDGMENT_DECLARATION.md)** explains why a signed `supported: true` can still mean a formal predicate, a model judgment, or a self-assertion—and why downstream systems must not collapse them.
 
+Its central normalization invariant is **evidentiary non-escalation**: an adapter may preserve or weaken the declared evidentiary strength of an upstream result, but it must not strengthen that result without additional evidence. Signing a normalized value makes the adapter's declaration tamper-evident; it does not turn a judgment into proof or an assertion into an independent observation.
+
 EvalDossier separates three questions that agent-commerce systems often collapse:
 
 1. What kind of basis produced a result?
@@ -132,6 +134,8 @@ A signature also does **not** establish that:
 Every attestation therefore declares its result basis. The economic action is fixed to `OUT_OF_SCOPE`.
 
 Read the standalone essay, [Supported by What?](./docs/PROOF_JUDGMENT_DECLARATION.md), and the [protocol guide](./docs/PROTOCOL.md).
+
+The essay includes a [related-work and scope boundary](./docs/PROOF_JUDGMENT_DECLARATION.md#related-work-and-scope-boundary) covering adjacent dossier, offline-trust, and cryptographically verifiable evaluation systems. EvalDossier is not an implementation of the Trust over IP Verifiable Dossiers specification.
 
 ## Protocol v0.1 scope
 
