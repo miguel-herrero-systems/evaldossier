@@ -93,6 +93,14 @@ The SDK also provides `createSignedProtocolObject`, exact-byte and protocol-obje
 
 See the [SDK guide](./docs/SDK.md) and the executable [reference integration](./examples/sdk/reference-evaluator.mjs).
 
+## Local Codex Skill
+
+The repository includes a reviewable [local Codex Skill](./integrations/codex/evaldossier/SKILL.md) and one [closed wrapper script](./integrations/codex/evaldossier/scripts/evaldossier-local.mjs). It verifies existing dossiers with externally supplied audience and nonce values or runs the fixed synthetic reference evaluator through SDK conformance. It does not capture Codex sessions, load arbitrary evaluator code, initiate network requests, handle production keys, or authorize economic action.
+
+The Skill requires the expected audience and nonce before dossier inspection and records their declared source as `USER_REQUEST` or `UPSTREAM_CONTEXT`. Every successful verification retains `CALLER_DECLARED_NOT_VERIFIED`: matching pins do not prove how the caller obtained them. Missing pins produce `INPUT_REQUIRED` rather than being inferred from the dossier. Its wrapper rejects URL, UNC/network-root, prefixed Windows device-namespace, and reserved Win32 device-alias paths before filesystem access. This is a lexical boundary, not proof that a drive, mount, or ancestor reparse point has local backing. Model-facing output exposes typed verification fields while committing free-form dossier text, local paths, and downstream error details by SHA-256 instead of reflecting attacker-controlled strings into Codex.
+
+The Skill source is not installed automatically and is not included in the npm package. Installation and plugin packaging remain separate supply-chain decisions. See the [integration specification](./docs/CODEX_INTEGRATION_SPEC.md) for its command contract, AgentProof boundary, security envelope, and acceptance criteria.
+
 ## What `verify` verifies
 
 The offline verifier checks:
@@ -116,7 +124,7 @@ node dist/src/cli.js verify <dossier-directory> \
   --nonce <expected-nonce>
 ```
 
-These options pin the audience and nonce in the signed top-level dossier; a mismatch is rejected. The enclosed historical objects may carry other signed audiences, while the request and attestation must still agree with each other. Without `--audience`, the summary reports `Audience binding: UNPINNED`; without `--nonce`, it reports `Dossier nonce binding: UNPINNED`. Signer trust remains `UNPINNED` in either case.
+These options pin the audience and nonce in the signed top-level dossier; a mismatch is rejected. The relying party must obtain the expected values independently rather than copy them from the dossier under verification. `PINNED` means that the supplied expected value matched; the verifier cannot prove how the caller obtained it. The enclosed historical objects may carry other signed audiences, while the request and attestation must still agree with each other. Without `--audience`, the summary reports `Audience binding: UNPINNED`; without `--nonce`, it reports `Dossier nonce binding: UNPINNED`. Signer trust remains `UNPINNED` in either case.
 
 `verify` does **not** re-execute the evaluator's predicate or a general normalization mapping, authenticate a demo key as a real organization, establish factual truth, or authorize payment. The canonical formal predicate is executed when `demo` builds its attestation; independent replay is a separate operation and is not implied by a successful dossier verification.
 
@@ -185,7 +193,7 @@ See [SECURITY.md](./SECURITY.md) and [THREAT_MODEL.md](./THREAT_MODEL.md).
 
 ## Future work
 
-The next integration target is a local Codex skill that invokes the SDK without exposing production signing keys to model context. It may later become an installable Codex plugin. External evaluator adapters will be added only against documented, compatible systems. The [control plane, public API, marketplace and settlement integrations](./docs/FUTURE_CONTROL_PLANE.md) remain explicitly deferred and require separate security and demand evidence.
+The local Codex Skill may later become an installable Codex plugin after separate packaging and supply-chain review. AgentProof remains the observed-session receipt layer; EvalDossier remains the typed evaluation layer. External evaluator adapters will be added only against documented, compatible systems. Production signing requires a separately reviewed external-signer interface. The [control plane, public API, marketplace and settlement integrations](./docs/FUTURE_CONTROL_PLANE.md) remain explicitly deferred and require separate security and demand evidence.
 
 ## Open empirical questions
 
