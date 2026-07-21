@@ -1,4 +1,4 @@
 interface:
   display_name: "EvalDossier"
-  short_description: "Verify EvalDossier evidence safely offline"
+  short_description: "Verify EvalDossier dossiers offline"
   default_prompt: "Use $evaldossier to verify this dossier offline using the audience and nonce I provide."

@@ -93,13 +93,22 @@ The SDK also provides `createSignedProtocolObject`, exact-byte and protocol-obje
 
 See the [SDK guide](./docs/SDK.md) and the executable [reference integration](./examples/sdk/reference-evaluator.mjs).
 
-## Local Codex Skill
+## Local agent integrations
 
-The repository includes a reviewable [local Codex Skill](./integrations/codex/evaldossier/SKILL.md) and one [closed wrapper script](./integrations/codex/evaldossier/scripts/evaldossier-local.mjs). It verifies existing dossiers with externally supplied audience and nonce values or runs the fixed synthetic reference evaluator through SDK conformance. It does not capture Codex sessions, load arbitrary evaluator code, initiate network requests, handle production keys, or authorize economic action.
+EvalDossier now exposes the same closed local verification semantics to two agents through one [shared runtime](./integrations/shared/evaldossier-local-core.mjs): a reviewable [Codex Skill](./integrations/codex/evaldossier/SKILL.md) and a manually invoked [Claude Code development plugin](./integrations/claude-code/evaldossier-plugin/skills/verify/SKILL.md). Their launchers configure host identity only; neither can change pin policy, non-claims, path rejection, semantic projection, conformance behavior, or the economic boundary.
 
-The Skill requires the expected audience and nonce before dossier inspection and records their declared source as `USER_REQUEST` or `UPSTREAM_CONTEXT`. Every successful verification retains `CALLER_DECLARED_NOT_VERIFIED`: matching pins do not prove how the caller obtained them. Missing pins produce `INPUT_REQUIRED` rather than being inferred from the dossier. Its wrapper rejects URL, UNC/network-root, prefixed Windows device-namespace, and reserved Win32 device-alias paths before filesystem access. This is a lexical boundary, not proof that a drive, mount, or ancestor reparse point has local backing. Model-facing output exposes typed verification fields while committing free-form dossier text, local paths, and downstream error details by SHA-256 instead of reflecting attacker-controlled strings into Codex.
+Both integrations require an expected audience and nonce before dossier inspection and retain `CALLER_DECLARED_NOT_VERIFIED`: matching pins do not prove how the caller obtained them. They reject URL, UNC/network-root, prefixed Windows device-namespace, and reserved Win32 device-alias paths before dossier access. This is a lexical boundary, not proof that a drive, mount, or ancestor reparse point has local backing. Agent-facing output exposes typed fields while committing free-form dossier text, local paths, and downstream errors by SHA-256 rather than reflecting attacker-controlled strings.
 
-The Skill source is not installed automatically and is not included in the npm package. Installation and plugin packaging remain separate supply-chain decisions. See the [integration specification](./docs/CODEX_INTEGRATION_SPEC.md) for its command contract, AgentProof boundary, security envelope, and acceptance criteria.
+Codex passes values as separate process arguments. Claude Code uses an exact JSON request written through its structured Write tool and then invokes fixed project-relative commands containing no user-controlled or host-substituted shell fragment. It uses one fixed request slot, so concurrent Claude verification invocations in the same checkout are unsupported. Strict request parsing rejects duplicate or unknown fields, malformed or oversized JSON, linked files, unsupported versions, and invalid sources before dossier access. Tests assert that Codex and Claude Code return identical verification semantics except for their declared integration identifier.
+
+The Claude Code source plugin can be validated and loaded from a built clone:
+
+```text
+claude plugin validate ./integrations/claude-code/evaldossier-plugin --strict
+claude --plugin-dir ./integrations/claude-code/evaldossier-plugin
+```
+
+Invoke `/evaldossier:verify`. This source plugin is not yet a standalone marketplace package: it intentionally reuses the repository build and shared runtime. The npm package includes the public documentation but excludes the `integrations/` executables and installs neither integration automatically. See the [Codex specification](./docs/CODEX_INTEGRATION_SPEC.md) and [Claude Code specification](./docs/CLAUDE_CODE_INTEGRATION_SPEC.md) for their command contracts, AgentProof boundary, security envelope, and acceptance criteria.
 
 ## What `verify` verifies
 
@@ -193,7 +202,7 @@ See [SECURITY.md](./SECURITY.md) and [THREAT_MODEL.md](./THREAT_MODEL.md).
 
 ## Future work
 
-The local Codex Skill may later become an installable Codex plugin after separate packaging and supply-chain review. AgentProof remains the observed-session receipt layer; EvalDossier remains the typed evaluation layer. External evaluator adapters will be added only against documented, compatible systems. Production signing requires a separately reviewed external-signer interface. The [control plane, public API, marketplace and settlement integrations](./docs/FUTURE_CONTROL_PLANE.md) remain explicitly deferred and require separate security and demand evidence.
+The next host target is an OpenClaw compatibility test against the same Claude bundle, not a third verification implementation. Standalone Codex, Claude Code, or OpenClaw distribution requires separate packaging and supply-chain review. AgentProof remains the observed-session receipt layer; EvalDossier remains the typed evaluation layer. External evaluator adapters will be added only against documented, compatible systems. Production signing requires a separately reviewed external-signer interface. The [control plane, public API, marketplace and settlement integrations](./docs/FUTURE_CONTROL_PLANE.md) remain explicitly deferred and require separate security and demand evidence.
 
 ## Open empirical questions
 

@@ -18,8 +18,9 @@
 - The top-level dossier's signed audience and nonce are self-declared protocol data unless the consumer supplies expected values out of band. Historical enclosed objects may use different audiences; only request and attestation are required to agree internally.
 - The SDK runs a caller-supplied evaluator function in the caller's process. `defineEvaluator` freezes a JavaScript object but is not a sandbox, capability boundary or code-authenticity check.
 - Caller-supplied signing keys exist in process memory while signing. The SDK does not persist them, but it cannot protect them from other code already executing in that process.
-- The Codex Skill is a natural-language behavioral control. The model can disobey it, use a lower-level command, or misstate where it obtained an expected audience or nonce.
-- The Codex wrapper can verify equality with caller-supplied context and record a declared pin source. It cannot observe the model's prior context or prove that a matching value was obtained independently rather than copied from the dossier.
+- The Codex and Claude Code Skills are natural-language behavioral controls. A model can disobey them, use a lower-level command, inspect a dossier too early, or misstate where it obtained an expected audience or nonce.
+- The shared agent runtime can verify equality with caller-supplied context and record a declared pin source. It cannot observe a model's prior context or prove that a matching value was obtained independently rather than copied from the dossier.
+- Claude Code's Bash surface accepts a command string rather than structured argv. Its Skill therefore moves user-controlled values through a strict request file written by a structured tool and invokes one fixed command. The runtime can validate that file, but cannot prove the model avoided another shell path.
 - A valid dossier signature authenticates free-form strings but does not make them trusted instructions. Model-visible wrapper output is a separate trust boundary from cryptographic verification.
 - A filesystem path can name a remote resource or device without using a URI scheme, notably through Windows UNC syntax, prefixed device namespaces, reserved legacy aliases, mapped drives, mounts, and reparse points.
 
@@ -40,8 +41,10 @@
 - Running an untrusted evaluator implementation in the same process as signing keys.
 - Publishing an incomplete dossier directory after an assembly failure.
 - Auto-sourcing expected audience or nonce values from the dossier and presenting self-consistency as independent context pinning.
-- Presenting a Codex pin-source label as verified provenance rather than a caller declaration.
-- Bypassing the closed Codex wrapper to invoke unpinned verification or load evaluator code chosen from a path, URL, package or model-generated source.
+- Presenting an agent pin-source label as verified provenance rather than a caller declaration.
+- Bypassing a closed host launcher to invoke unpinned verification or load evaluator code chosen from a path, URL, package or model-generated source.
+- Interpolating a dossier path, audience, nonce, source label, or request body into a shell command.
+- Supplying an ambiguous, oversized, linked, stale, or concurrently replaced structured request file.
 - Reflecting instruction-like dossier fields or raw verifier errors into the surrounding model context.
 - Reaching a network-backed filesystem through UNC, protocol-relative, or device-namespace paths despite the offline claim.
 
@@ -59,10 +62,11 @@
 - `economicAction` is schema-fixed to `OUT_OF_SCOPE`.
 - No EvalDossier-owned network client, dynamic plugin discovery, remote storage or signing-key persistence; caller-supplied evaluator I/O is outside this guarantee.
 - The SDK owns protocol envelope fields, validates every run object before assembly, binds the executable definition to signed evaluator identities, and pins the finished dossier's audience and nonce during immediate verification.
-- The repository-contained Codex Skill requires expected audience and nonce values before dossier inspection, refuses to infer missing values, and routes supported operations through one closed local wrapper.
-- The wrapper validates both pins and their closed source labels before resolving or reading the dossier, requires JSON output, rejects URLs, syntactically network-backed roots, prefixed device namespaces, reserved Win32 device aliases, and evaluator/module options, and always reports pin provenance as `CALLER_DECLARED_NOT_VERIFIED`.
-- The Codex-facing result is a fixed typed projection. Free-form dossier identifiers, audience text, warnings, local paths, and downstream errors are represented by counts or SHA-256 commitments rather than emitted verbatim.
-- The Codex conformance path executes only the fixed bundled reference evaluator with intentionally public fixture keys and refuses to overwrite an existing output directory.
+- The repository-contained Codex and Claude Code Skills require expected audience and nonce values before dossier inspection, refuse to infer missing values, and route supported operations through thin launchers over one shared runtime.
+- The shared runtime validates both pins and their closed source labels before resolving or reading the dossier, requires JSON output, rejects URLs, syntactically network-backed roots, prefixed device namespaces, reserved Win32 device aliases, and evaluator/module options, and always reports pin provenance as `CALLER_DECLARED_NOT_VERIFIED`.
+- Claude Code uses one fixed project-relative ignored request path. Its documented shell commands are fixed relative literals with no host substitution, environment value, project path, session identifier, or user-controlled value. Strict parsing rejects duplicate, missing, extra, malformed, oversized, unsupported, symbolic-linked, and hard-linked request inputs before dossier access. Concurrent verification invocations in one checkout are unsupported.
+- Agent-facing results are fixed typed projections. Free-form dossier identifiers, audience text, warnings, local and request paths, and downstream errors are represented by counts or SHA-256 commitments rather than emitted verbatim.
+- Host conformance paths execute only the fixed bundled reference evaluator with intentionally public fixture keys and refuse to overwrite an existing output directory.
 - Package checks require the SDK exports and schemas while excluding compiled tests and common local-only paths.
 
 ## Residual limitations
@@ -73,7 +77,9 @@ The filesystem checks reject traversal, symlinks, hardlinks, unexpected files an
 
 `runEvaluator` requires a new output path and prevalidates protocol schemas and evaluator identity before creating it. A failure during later dossier assembly may still leave a partial directory. It must not be published or interpreted as a dossier; remove only that exact known target before retrying.
 
-The Skill and wrapper cannot establish pin independence. Every successful pinned verification necessarily compares equal values, so equality cannot distinguish an independently supplied pin from one copied by the model. The integration therefore exposes declared source provenance with the fixed assurance `CALLER_DECLARED_NOT_VERIFIED`; consumers must not upgrade that declaration into proof. A relying party that needs stronger provenance must deliver expected context through a separately authenticated channel outside the current integration.
+The Skills and shared runtime cannot establish pin independence. Every successful pinned verification necessarily compares equal values, so equality cannot distinguish an independently supplied pin from one copied by a model. The integrations therefore expose declared source provenance with the fixed assurance `CALLER_DECLARED_NOT_VERIFIED`; consumers must not upgrade that declaration into proof. A relying party that needs stronger provenance must deliver expected context through a separately authenticated channel outside these integrations.
+
+The Claude request file is gitignored but not encrypted, erased, or protected as secret storage. Its symbolic-link and hard-link checks do not create an atomic read, prevent a privileged process from changing mounts, or eliminate time-of-check/time-of-use races. Do not place secrets in it; use a trusted local workspace and remove only the exact known local request when its retention is no longer wanted.
 
 Lexical path rejection cannot establish physical storage locality. A drive letter may map to a UNC share, and a path that appears local may cross a network mount or an ancestor reparse point configured outside the dossier tree. EvalDossier does not query mount topology or claim to exclude those operating-system configurations; the caller must select a genuinely local trusted volume.
 

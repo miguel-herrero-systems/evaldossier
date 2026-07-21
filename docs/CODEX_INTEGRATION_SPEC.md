@@ -54,15 +54,18 @@ The Skill must not dynamically import or execute an evaluator chosen by path, UR
 ## 4. Source layout
 
 ```text
-integrations/codex/evaldossier/
-├── SKILL.md
-├── agents/
-│   └── openai.yaml
-└── scripts/
-    └── evaldossier-local.mjs
+integrations/
+├── shared/
+│   └── evaldossier-local-core.mjs
+└── codex/evaldossier/
+    ├── SKILL.md
+    ├── agents/
+    │   └── openai.yaml
+    └── scripts/
+        └── evaldossier-local.mjs
 ```
 
-The Skill source remains inside this repository so its instructions and script are reviewable with the protocol implementation. It is not automatically installed into a user's Codex home directory. Installation and plugin packaging remain explicit later steps.
+The Skill source remains inside this repository so its instructions and launcher are reviewable with the protocol implementation. The launcher configures only the fixed Codex host identity and delegates to the shared runtime; it cannot configure verification policy, non-claims, path rules, conformance expectations, or economic behavior. The Skill is not automatically installed into a user's Codex home directory. Installation and plugin packaging remain explicit later steps.
 
 No additional README, server, database, registry, or network client is required for this integration.
 
@@ -79,6 +82,10 @@ node integrations/codex/evaldossier/scripts/evaldossier-local.mjs verify \
   --nonce-source <user-request|upstream-context> \
   --json
 
+node integrations/codex/evaldossier/scripts/evaldossier-local.mjs verify-request \
+  --request <existing-strict-json-file> \
+  --json
+
 node integrations/codex/evaldossier/scripts/evaldossier-local.mjs conformance \
   --output <new-directory> \
   --json
@@ -88,7 +95,7 @@ Normative behavior:
 
 1. Reject unknown commands, duplicate options, missing values, and unexpected positional arguments.
 2. Accept only syntactically local filesystem paths. Reject URLs, UNC/network roots, protocol-relative roots, prefixed Windows device namespaces, and reserved Win32 device aliases such as `NUL`, `CON`, `COM1`, and their extension forms before path resolution or any filesystem operation. This lexical control cannot prove that an apparently local drive, mount, or ancestor reparse point has local physical backing.
-3. Require both audience and nonce for Skill-driven verification. The lower-level CLI may still support diagnostic unpinned verification, but the Skill must not silently select it.
+3. Require both audience and nonce for every direct or structured-request verification path exposed by the wrapper.
 4. Require a closed, explicit declared source for each pin: `user-request` or `upstream-context`. Reject absent, unknown, `dossier`, inferred, or derived source values.
 5. Treat each source label as an orchestrator declaration for audit, not as proof that the model obtained the pin independently. The wrapper cannot observe the model's prior context or establish provenance cryptographically.
 6. Require a new output directory for conformance and never overwrite an existing path.
@@ -96,7 +103,7 @@ Normative behavior:
 8. Preserve the verifier's typed basis, predicate status, obligation verdict, trust status, pin status, and provenance. Preserve the existence and integrity of free-form warning text through a count and per-warning SHA-256 commitments, not by returning the raw strings to Codex.
 9. Keep `economicAction` equal to `OUT_OF_SCOPE` and never translate a verdict into payment advice.
 
-The wrapper must call repository code through fixed imports. It must not construct shell commands from user input.
+The launcher and shared runtime must call repository code through fixed imports. They must not construct shell commands from user input. The same runtime may serve another host only through a fixed, reviewed launcher whose configuration is limited to host identity and synthetic fixture naming.
 
 ## 6. Evidentiary interpretation
 
@@ -198,9 +205,9 @@ Implementation is acceptable only if all of the following hold from a clean clon
 - production signing and key custody;
 - third-party evaluator loading or discovery;
 - AgentProof-to-EvalDossier evidence profiles;
-- Claude Code and OpenClaw clients;
-- npm or Codex marketplace publication;
-- plugin packaging;
+- OpenClaw compatibility;
+- standalone Codex or Claude Code marketplace publication;
+- standalone plugin packaging;
 - MCP, public API, control plane, accounts, registry, or marketplace;
 - networked evidence acquisition;
 - blockchain anchoring and settlement.
@@ -210,7 +217,7 @@ Each deferred item requires its own utility and security justification. None is 
 ## 11. Implementation and validation sequence
 
 1. Scaffold the Skill with the official skill initializer.
-2. Write the closed local wrapper over existing CLI and SDK functions.
+2. Write the closed shared local runtime over existing CLI and SDK functions, then expose it through a thin fixed Codex launcher.
 3. Add adversarial integration tests for arguments, path behavior, pins, tampering, and semantic non-escalation.
 4. Forward-test the Skill with missing pins and a dossier that contains tempting self-sourced values; require refusal before verification.
 5. Validate the Skill structure and the full repository from a clean clone.

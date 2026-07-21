@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "evaldossier",
+  "displayName": "EvalDossier",
+  "version": "0.1.0",
+  "description": "Repository-contained offline verification of portable signed evaluation dossiers.",
+  "author": {
+    "name": "Miguel Herrero",
+    "email": "contact@hrevn.com",
+    "url": "https://hrevn.com"
+  },
+  "homepage": "https://github.com/miguel-herrero-systems/evaldossier",
+  "repository": "https://github.com/miguel-herrero-systems/evaldossier",
+  "license": "MIT",
+  "keywords": [
+    "ai-agents",
+    "evaluation",
+    "attestations",
+    "offline-verification"
+  ]
+}

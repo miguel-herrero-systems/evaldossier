@@ -19,6 +19,12 @@ const scriptPath = join(
   "scripts",
   "evaldossier-local.mjs",
 );
+const sharedCorePath = join(
+  projectRoot,
+  "integrations",
+  "shared",
+  "evaldossier-local-core.mjs",
+);
 const formalDossier = join(projectRoot, "examples", "formal");
 const modelJudgmentDossier = join(projectRoot, "examples", "model-judgment");
 
@@ -362,8 +368,8 @@ test("unknown option names are not reflected into model-facing errors", async ()
   assert.equal(result.stderr.includes(untrustedOption), false);
 });
 
-test("the Codex-owned wrapper contains no network or child-process surface", async () => {
-  const source = await readFile(scriptPath, "utf8");
+test("the Codex launcher and shared core contain no network or child-process surface", async () => {
+  const source = `${await readFile(scriptPath, "utf8")}\n${await readFile(sharedCorePath, "utf8")}`;
   assert.doesNotMatch(source, /node:(?:http|https|net|tls|dgram|dns|child_process)/);
   assert.doesNotMatch(source, /\bfetch\s*\(/);
   assert.doesNotMatch(source, /\b(?:exec|spawn|fork)\s*\(/);
