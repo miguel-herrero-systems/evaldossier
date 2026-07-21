@@ -18,6 +18,10 @@
 - The top-level dossier's signed audience and nonce are self-declared protocol data unless the consumer supplies expected values out of band. Historical enclosed objects may use different audiences; only request and attestation are required to agree internally.
 - The SDK runs a caller-supplied evaluator function in the caller's process. `defineEvaluator` freezes a JavaScript object but is not a sandbox, capability boundary or code-authenticity check.
 - Caller-supplied signing keys exist in process memory while signing. The SDK does not persist them, but it cannot protect them from other code already executing in that process.
+- The Codex Skill is a natural-language behavioral control. The model can disobey it, use a lower-level command, or misstate where it obtained an expected audience or nonce.
+- The Codex wrapper can verify equality with caller-supplied context and record a declared pin source. It cannot observe the model's prior context or prove that a matching value was obtained independently rather than copied from the dossier.
+- A valid dossier signature authenticates free-form strings but does not make them trusted instructions. Model-visible wrapper output is a separate trust boundary from cryptographic verification.
+- A filesystem path can name a remote resource or device without using a URI scheme, notably through Windows UNC syntax, prefixed device namespaces, reserved legacy aliases, mapped drives, mounts, and reparse points.
 
 ## Principal threats
 
@@ -35,6 +39,11 @@
 - Treating SDK conformance as evaluator certification or marketplace approval.
 - Running an untrusted evaluator implementation in the same process as signing keys.
 - Publishing an incomplete dossier directory after an assembly failure.
+- Auto-sourcing expected audience or nonce values from the dossier and presenting self-consistency as independent context pinning.
+- Presenting a Codex pin-source label as verified provenance rather than a caller declaration.
+- Bypassing the closed Codex wrapper to invoke unpinned verification or load evaluator code chosen from a path, URL, package or model-generated source.
+- Reflecting instruction-like dossier fields or raw verifier errors into the surrounding model context.
+- Reaching a network-backed filesystem through UNC, protocol-relative, or device-namespace paths despite the offline claim.
 
 ## Current mitigations (SDK v0.2.0, protocol v0.1)
 
@@ -50,6 +59,10 @@
 - `economicAction` is schema-fixed to `OUT_OF_SCOPE`.
 - No EvalDossier-owned network client, dynamic plugin discovery, remote storage or signing-key persistence; caller-supplied evaluator I/O is outside this guarantee.
 - The SDK owns protocol envelope fields, validates every run object before assembly, binds the executable definition to signed evaluator identities, and pins the finished dossier's audience and nonce during immediate verification.
+- The repository-contained Codex Skill requires expected audience and nonce values before dossier inspection, refuses to infer missing values, and routes supported operations through one closed local wrapper.
+- The wrapper validates both pins and their closed source labels before resolving or reading the dossier, requires JSON output, rejects URLs, syntactically network-backed roots, prefixed device namespaces, reserved Win32 device aliases, and evaluator/module options, and always reports pin provenance as `CALLER_DECLARED_NOT_VERIFIED`.
+- The Codex-facing result is a fixed typed projection. Free-form dossier identifiers, audience text, warnings, local paths, and downstream errors are represented by counts or SHA-256 commitments rather than emitted verbatim.
+- The Codex conformance path executes only the fixed bundled reference evaluator with intentionally public fixture keys and refuses to overwrite an existing output directory.
 - Package checks require the SDK exports and schemas while excluding compiled tests and common local-only paths.
 
 ## Residual limitations
@@ -59,3 +72,9 @@ Cryptography cannot prove that an organization is independent, that a model is c
 The filesystem checks reject traversal, symlinks, hardlinks, unexpected files and byte mismatches at the points where they are inspected. They do not create an atomic snapshot of the whole directory. A hostile process with concurrent write access may still introduce time-of-check/time-of-use races between directory enumeration and later reads. Verify only an immutable snapshot, a read-only copy, or a directory whose mutation is otherwise excluded for the duration of verification.
 
 `runEvaluator` requires a new output path and prevalidates protocol schemas and evaluator identity before creating it. A failure during later dossier assembly may still leave a partial directory. It must not be published or interpreted as a dossier; remove only that exact known target before retrying.
+
+The Skill and wrapper cannot establish pin independence. Every successful pinned verification necessarily compares equal values, so equality cannot distinguish an independently supplied pin from one copied by the model. The integration therefore exposes declared source provenance with the fixed assurance `CALLER_DECLARED_NOT_VERIFIED`; consumers must not upgrade that declaration into proof. A relying party that needs stronger provenance must deliver expected context through a separately authenticated channel outside the current integration.
+
+Lexical path rejection cannot establish physical storage locality. A drive letter may map to a UNC share, and a path that appears local may cross a network mount or an ancestor reparse point configured outside the dossier tree. EvalDossier does not query mount topology or claim to exclude those operating-system configurations; the caller must select a genuinely local trusted volume.
+
+Commitments to suppressed free-form text are not a confidentiality mechanism: a predictable warning or path may be guessed and hashed. They exist only to make omission explicit and allow correlation without placing raw attacker-controlled strings in the model-facing result. Human review of those strings must happen outside the agent context.
