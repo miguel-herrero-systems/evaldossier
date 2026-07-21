@@ -1,8 +1,8 @@
-# Future control plane — deliberately not implemented in v0.1
+# Future control plane — deliberately outside SDK v0.2.0
 
 The long-term architecture may add evaluator registration, continuous conformance, job routing, attempts and leases, private artifact handling, operational observations, audit retention and customer-operated settlement adapters.
 
-None of those components belongs in the first public artifact.
+None of those components belongs in the current offline SDK.
 
 Implementation gates:
 

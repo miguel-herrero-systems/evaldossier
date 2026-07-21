@@ -22,3 +22,5 @@ jobs:
       - run: npm test
       - run: npm run demo
       - run: npm run verify:demo
+      - run: npm run demo:sdk
+      - run: npm run pack:check
