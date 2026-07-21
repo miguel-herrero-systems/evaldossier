@@ -1,0 +1,38 @@
+{
+  "name": "evaldossier",
+  "version": "0.1.0",
+  "description": "Offline-verifiable evaluation attestations and portable dossiers for heterogeneous AI-agent evaluators.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "bin": {
+    "evaldossier": "dist/src/cli.js"
+  },
+  "files": [
+    "dist",
+    "schemas",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "demo": "npm run build && node dist/src/cli.js demo --out demo-output",
+    "verify:demo": "npm run build && node dist/src/cli.js verify demo-output/formal --audience evaldossier.demo.consumer --nonce Zm9ybWFsLWRvc3NpZXItbm9uY2U && node dist/src/cli.js verify demo-output/model-judgment --audience evaldossier.demo.consumer --nonce synthetic-model-judgment-nonce-0001"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "json-canonicalize": "^2.0.0",
+    "jsonc-parser": "^3.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3"
+  }
+}

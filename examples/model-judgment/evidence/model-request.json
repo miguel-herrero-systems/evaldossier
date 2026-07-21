@@ -1,0 +1,10 @@
+{
+  "fixtureVersion": "evaldossier.synthetic-upstream-request/0.1",
+  "generator": "EvalDossier",
+  "evidenceSupplied": false,
+  "request": {
+    "deliverable": "This is a project-authored synthetic deliverable used only to exercise type-preserving normalization. It is not the output of an external agent or service.",
+    "taskType": "synthetic_content_review",
+    "topic": "model-judgment semantics"
+  }
+}

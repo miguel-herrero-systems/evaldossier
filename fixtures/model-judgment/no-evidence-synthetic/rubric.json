@@ -1,0 +1,15 @@
+{
+  "fixtureVersion": "evaldossier.synthetic-rubric/0.1",
+  "generator": "EvalDossier",
+  "rubric": {
+    "engine": "synthetic-model-judge",
+    "version": "0.1.0",
+    "evidenceMode": "NONE",
+    "dimensions": [
+      "plausibility",
+      "relevance",
+      "coherence"
+    ],
+    "supportedSemantics": "A favorable synthetic model judgment under this rubric; not evidence-backed factual establishment."
+  }
+}

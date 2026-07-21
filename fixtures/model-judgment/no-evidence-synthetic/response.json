@@ -1,0 +1,44 @@
+{
+  "fixtureVersion": "evaldossier.synthetic-upstream-response/0.1",
+  "generator": "EvalDossier",
+  "response": {
+    "scoring": {
+      "quality_score": 0.74,
+      "confidence_score": 0.71,
+      "missing_evidence_flags": [
+        "No external evidence was supplied",
+        "No deterministic predicate was executed"
+      ],
+      "contradiction_flags": [],
+      "result": "pass",
+      "payout_recommendation": "release",
+      "payout_tier": 1
+    },
+    "claims": [
+      {
+        "fixture_claim_id": "synthetic-claim-01",
+        "text": "The response is clear and relevant to the brief.",
+        "claim_type": "qualitative",
+        "supported": true,
+        "confidence": 0.84,
+        "notes": "Synthetic favorable model judgment over a qualitative criterion."
+      },
+      {
+        "fixture_claim_id": "synthetic-claim-02",
+        "text": "The response contains no factual errors.",
+        "claim_type": "factual_quality",
+        "supported": true,
+        "confidence": 0.71,
+        "notes": "Synthetic favorable judgment emitted without evidence or formal validation."
+      },
+      {
+        "fixture_claim_id": "synthetic-claim-03",
+        "text": "The response satisfies every unstated buyer preference.",
+        "claim_type": "compliance",
+        "supported": false,
+        "confidence": 0.38,
+        "notes": "Synthetic negative judgment over an intentionally underspecified criterion."
+      }
+    ]
+  }
+}

@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/dossier.schema.json",
+  "title": "EvalDossier portable dossier index 0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "schemaVersion",
+    "dossierId",
+    "generatedAt",
+    "classification",
+    "exporter",
+    "signingKeyId",
+    "artifacts",
+    "bindings",
+    "warnings",
+    "economicAction",
+    "signatureContext",
+    "proof"
+  ],
+  "properties": {
+    "protocolVersion": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/protocolVersion" },
+    "schemaVersion": { "const": "evaldossier.dossier/0.1" },
+    "dossierId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/identifier" },
+    "generatedAt": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/timestamp" },
+    "classification": { "enum": ["INTERNAL_REFERENCE", "CAPTURED_EXTERNAL_RESPONSE"] },
+    "exporter": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/embeddedSigner" },
+    "signingKeyId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/keyId" },
+    "artifacts": {
+      "type": "array",
+      "description": "The dossier commits exactly one object for each of the five enclosed protocol roles. Together with this index, these are the six v0.1 protocol objects. Source artifacts and a human report may also be committed.",
+      "minItems": 5,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "allOf": [
+        {
+          "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "EVALUATOR_MANIFEST" } } },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "PROFILE_DEFINITION" } } },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "EVALUATION_REQUEST" } } },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "EVIDENCE_BUNDLE" } } },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "EVALUATION_ATTESTATION" } } },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "path", "mediaType", "digest", "sizeBytes", "requiredForVerification"],
+        "properties": {
+          "role": {
+            "enum": [
+              "EVALUATOR_MANIFEST",
+              "PROFILE_DEFINITION",
+              "EVALUATION_REQUEST",
+              "EVIDENCE_BUNDLE",
+              "EVALUATION_ATTESTATION",
+              "SOURCE_ARTIFACT",
+              "HUMAN_REPORT"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "allOf": [
+              { "pattern": "^(?:objects|evidence|reports)/[A-Za-z0-9._/-]+$" },
+              { "not": { "pattern": "(?:^|/)\\.\\.(?:/|$)" } },
+              { "not": { "pattern": "(?:^|/)\\.(?:/|$)" } },
+              { "not": { "pattern": "\\\\" } },
+              { "not": { "pattern": "//" } }
+            ]
+          },
+          "mediaType": {
+            "type": "string",
+            "pattern": "^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$",
+            "maxLength": 127
+          },
+          "digest": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/digest" },
+          "sizeBytes": { "type": "integer", "minimum": 1, "maximum": 5242880 },
+          "requiredForVerification": { "type": "boolean" }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "role": { "const": "HUMAN_REPORT" } }, "required": ["role"] },
+            "then": { "properties": { "requiredForVerification": { "const": false } } },
+            "else": { "properties": { "requiredForVerification": { "const": true } } }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "enum": ["EVALUATOR_MANIFEST", "PROFILE_DEFINITION", "EVALUATION_REQUEST", "EVIDENCE_BUNDLE", "EVALUATION_ATTESTATION"]
+                }
+              },
+              "required": ["role"]
+            },
+            "then": {
+              "properties": {
+                "path": { "pattern": "^objects/" },
+                "mediaType": { "const": "application/json" }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "role": { "const": "SOURCE_ARTIFACT" } }, "required": ["role"] },
+            "then": { "properties": { "path": { "pattern": "^evidence/" } } }
+          },
+          {
+            "if": { "properties": { "role": { "const": "HUMAN_REPORT" } }, "required": ["role"] },
+            "then": {
+              "properties": {
+                "path": { "pattern": "^reports/" },
+                "mediaType": { "const": "text/markdown" }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifestDigest", "profileDigest", "requestDigest", "evidenceBundleDigest", "attestationDigest"],
+      "properties": {
+        "manifestDigest": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/digest" },
+        "profileDigest": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/digest" },
+        "requestDigest": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/digest" },
+        "evidenceBundleDigest": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/digest" },
+        "attestationDigest": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/digest" }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+    },
+    "economicAction": { "const": "OUT_OF_SCOPE" },
+    "signatureContext": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/signatureContext" },
+    "proof": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/proof" }
+  }
+}
