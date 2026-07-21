@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { verifyDossier } from "./dossier.js";
 import { runDemo } from "./demo.js";
 import { renderVerificationSummary } from "./report.js";
 
-const HELP = `EvalDossier 0.1 — offline evaluation dossiers
+const HELP = `EvalDossier SDK 0.2.0 — protocol 0.1 — offline evaluation dossiers
 
 Usage:
   evaldossier demo [--out <directory>]
@@ -110,8 +111,18 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
   }
 }
 
-const invokedPath = process.argv[1];
-if (invokedPath !== undefined && import.meta.url === pathToFileURL(invokedPath).href) {
+function isDirectInvocation(invokedPath: string | undefined): boolean {
+  if (invokedPath === undefined) {
+    return false;
+  }
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(invokedPath)).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectInvocation(process.argv[1])) {
   main().then(
     (code) => {
       process.exitCode = code;

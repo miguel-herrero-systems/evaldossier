@@ -1,6 +1,8 @@
 # Security policy
 
-EvalDossier v0.1 is intentionally offline. It does not expose a server, make outbound network requests, execute untrusted code, hold credentials or move funds.
+EvalDossier SDK v0.2.0 and protocol v0.1 are intentionally offline. EvalDossier-owned code does not expose a server, initiate outbound network requests, discover or load evaluator plugins, persist credentials, or move funds. A caller-supplied evaluator may perform its own I/O and remains outside this guarantee.
+
+The SDK accepts caller-supplied Ed25519 private keys in memory for local signing. Key generation, storage, rotation, authorization and process isolation remain the caller's responsibility. Never place a production private key in an agent prompt or model context.
 
 ## Reporting
 
@@ -15,7 +17,11 @@ The current security boundary covers:
 - canonicalization and detached-JWS verification;
 - digest and object-binding verification;
 - safe relative dossier paths;
-- rejection of unknown signature algorithms and protocol versions.
+- rejection of unknown signature algorithms and protocol versions;
+- SDK protocol-envelope ownership and evaluator-ID binding;
+- package export and package-content checks.
+
+The SDK invokes the evaluator function supplied by the caller. It does not sandbox that function. Only run evaluator implementations that you have independently chosen to execute under an appropriate process boundary.
 
 ## Fixture keys
 
@@ -23,4 +29,4 @@ All private keys under `fixtures/keys/` are deterministic demo material. They ar
 
 ## Explicit non-claims
 
-Successful verification does not establish truth, neutrality, institutional independence, legal authority, payment entitlement or production security.
+Successful verification or SDK conformance does not establish truth, neutrality, institutional independence, legal authority, payment entitlement or production security.

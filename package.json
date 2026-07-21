@@ -1,20 +1,64 @@
 {
   "name": "evaldossier",
-  "version": "0.1.0",
-  "description": "Offline-verifiable evaluation attestations and portable dossiers for heterogeneous AI-agent evaluators.",
+  "version": "0.2.0",
+  "description": "SDK and offline verifier for portable, signed evaluation dossiers across heterogeneous AI-agent evaluators.",
   "type": "module",
   "private": true,
   "license": "MIT",
+  "author": {
+    "name": "Miguel Herrero",
+    "email": "contact@hrevn.com",
+    "url": "https://hrevn.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/miguel-herrero-systems/evaldossier.git"
+  },
+  "homepage": "https://github.com/miguel-herrero-systems/evaldossier#readme",
+  "bugs": {
+    "url": "https://github.com/miguel-herrero-systems/evaldossier/issues"
+  },
+  "keywords": [
+    "ai-agents",
+    "agent-commerce",
+    "evaluation",
+    "evaluation-dossiers",
+    "attestations",
+    "cryptographic-attestations",
+    "verifiable-evidence",
+    "ed25519",
+    "offline-first"
+  ],
+  "sideEffects": false,
   "engines": {
     "node": ">=20.11"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./sdk": {
+      "types": "./dist/src/sdk.d.ts",
+      "import": "./dist/src/sdk.js"
+    },
+    "./schemas/*": "./schemas/*",
+    "./package.json": "./package.json"
   },
   "bin": {
     "evaldossier": "dist/src/cli.js"
   },
   "files": [
-    "dist",
+    "dist/src",
     "schemas",
     "docs",
+    "examples/sdk",
+    "fixtures",
+    "SECURITY.md",
+    "THREAT_MODEL.md",
+    "NOTICE",
     "README.md",
     "LICENSE"
   ],
@@ -23,7 +67,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "demo": "npm run build && node dist/src/cli.js demo --out demo-output",
-    "verify:demo": "npm run build && node dist/src/cli.js verify demo-output/formal --audience evaldossier.demo.consumer --nonce Zm9ybWFsLWRvc3NpZXItbm9uY2U && node dist/src/cli.js verify demo-output/model-judgment --audience evaldossier.demo.consumer --nonce synthetic-model-judgment-nonce-0001"
+    "verify:demo": "npm run build && node dist/src/cli.js verify demo-output/formal --audience evaldossier.demo.consumer --nonce Zm9ybWFsLWRvc3NpZXItbm9uY2U && node dist/src/cli.js verify demo-output/model-judgment --audience evaldossier.demo.consumer --nonce synthetic-model-judgment-nonce-0001",
+    "demo:sdk": "npm run build && node examples/sdk/reference-evaluator.mjs",
+    "pack:check": "npm run build && node scripts/check-package.mjs"
   },
   "dependencies": {
     "ajv": "^8.17.1",

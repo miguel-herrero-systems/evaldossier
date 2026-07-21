@@ -1,10 +1,12 @@
 # EvalDossier — Verifiable Evaluation Evidence for AI Agents
 
+[![CI](https://github.com/miguel-herrero-systems/evaldossier/actions/workflows/ci.yml/badge.svg)](https://github.com/miguel-herrero-systems/evaldossier/actions/workflows/ci.yml)
+
 **Offline-verifiable evaluation attestations and portable dossiers for heterogeneous AI-agent evaluators.**
 
-> Status: `v0.1.0` · offline-first · deterministic demos · settlement-independent
+> Status: SDK `v0.2.0` · protocol `evaldossier/0.1` · offline-first · settlement-independent
 
-EvalDossier is a settlement-independent TypeScript reference implementation for packaging evaluator outputs, evidence, and signatures into dossiers that another system can verify offline. It is designed for AI-agent and agent-commerce workflows that must distinguish formal proof from model judgment or self-assertion before applying any economic policy.
+EvalDossier is a settlement-independent TypeScript SDK and reference implementation for packaging evaluator outputs, evidence, and signatures into dossiers that another system can verify offline. It is designed for AI-agent and agent-commerce workflows that must distinguish formal proof from model judgment or self-assertion before applying any economic policy.
 
 Conceptual rationale: **[Supported by What?](./docs/PROOF_JUDGMENT_DECLARATION.md)** explains why a signed `supported: true` can still mean a formal predicate, a model judgment, or a self-assertion—and why downstream systems must not collapse them.
 
@@ -29,17 +31,20 @@ manifest + profile + request + evidence + attestation
          offline verifier
 ```
 
-The canonical v0.1 path is a deterministic reference evaluator using `FORMAL_PREDICATE`. It demonstrates that a complete dossier can be generated and checked for its declared integrity and semantics without a server, external identity provider, payment rail, or upstream service.
+The canonical protocol 0.1 path is a deterministic reference evaluator using `FORMAL_PREDICATE`. It demonstrates that a complete dossier can be generated and checked for its declared integrity and semantics without a server, external identity provider, payment rail, or upstream service.
 
 A second, entirely synthetic path demonstrates a different property: an offline normalizer can preserve a heterogeneous `MODEL_JUDGMENT` without promoting it to factual proof. Every byte in that fixture is authored by this project, uses `SYNTHETIC` provenance, and makes no claim about an external evaluator, integration, production event, adoption, or demand.
 
 ## Quick start
 
 ```bash
+git clone https://github.com/miguel-herrero-systems/evaldossier.git
+cd evaldossier
 npm ci
 npm test
 npm run demo
 npm run verify:demo
+npm run demo:sdk
 ```
 
 The demo writes two dossiers to `demo-output/`. You can verify either one directly:
@@ -57,6 +62,34 @@ Expected semantic output:
 |---|---|---|---|---|
 | Canonical formal evaluator | `FORMAL_PREDICATE` | `ESTABLISHED_TRUE` | `SATISFIED` | `OUT_OF_SCOPE` |
 | Synthetic model-judgment normalizer | `MODEL_JUDGMENT` | `UNDETERMINED` | `INCONCLUSIVE` | `OUT_OF_SCOPE` |
+
+## Evaluator SDK
+
+SDK v0.2 makes the evaluator boundary executable without changing protocol v0.1. An integration can define an evaluator, return one complete signed `EvaluationRun`, assemble it into a dossier, verify it with audience and nonce pinned, and assert its expected declared semantics.
+
+Until a supported npm release exists, the imports below are exercised from a cloned repository after `npm run build`; `npm install evaldossier` is not a supported installation path.
+
+```js
+import {
+  assertEvaluatorConformance,
+  defineEvaluator,
+  runEvaluator,
+} from "evaldossier/sdk";
+
+const evaluator = defineEvaluator({
+  evaluatorId: "example-evaluator",
+  async evaluate(input) {
+    return buildSignedEvaluationRun(input);
+  },
+});
+
+const execution = await runEvaluator(evaluator, input, options);
+console.log(execution.verified.summary);
+```
+
+The SDK also provides `createSignedProtocolObject`, exact-byte and protocol-object digest helpers, and a conformance runner. EvalDossier-owned orchestration does not register evaluators, persist keys, initiate network requests, establish institutional trust, or authorize economic action. A caller-supplied evaluator may use the network and remains outside that guarantee.
+
+See the [SDK guide](./docs/SDK.md) and the executable [reference integration](./examples/sdk/reference-evaluator.mjs).
 
 ## What `verify` verifies
 
@@ -100,7 +133,7 @@ Every attestation therefore declares its result basis. The economic action is fi
 
 Read the standalone essay, [Supported by What?](./docs/PROOF_JUDGMENT_DECLARATION.md), and the [protocol guide](./docs/PROTOCOL.md).
 
-## v0.1 scope
+## Protocol v0.1 scope
 
 Included:
 
@@ -134,7 +167,11 @@ JSON Schemas live in [`schemas/`](./schemas/). The implementation rejects duplic
 
 ## Distribution
 
-v0.1 is distributed as this GitHub repository, not as a supported npm package. `private: true` is deliberate, and the demo commands depend on fixtures committed with the repository.
+The v0.2 tree is shaped as an importable Node.js package with explicit root, SDK, and schema exports. `npm pack` is checked in CI, but `private: true` remains deliberate: EvalDossier is not yet presented as a supported npm-registry release. Registry naming, support guarantees, and supply-chain publication remain separate decisions.
+
+The package policy is a guard against common accidental inclusions and entrypoint drift. It is not a content-level secret scanner or a supply-chain security guarantee.
+
+The repository and package fixtures contain intentionally public deterministic test keys so the demos remain reproducible. They are not production credentials.
 
 ## Security
 
@@ -144,7 +181,7 @@ See [SECURITY.md](./SECURITY.md) and [THREAT_MODEL.md](./THREAT_MODEL.md).
 
 ## Future work
 
-v0.2 targets a small evaluator SDK and conformance kit: a builder should be able to implement an evaluator, generate a conforming signed dossier, and verify it without modifying the core. External adapters will be added only against documented, compatible systems. The control plane, public API, marketplace and settlement integrations remain explicitly deferred and require separate security and demand evidence.
+The next integration target is a local Codex skill that invokes the SDK without exposing production signing keys to model context. It may later become an installable Codex plugin. External evaluator adapters will be added only against documented, compatible systems. The [control plane, public API, marketplace and settlement integrations](./docs/FUTURE_CONTROL_PLANE.md) remain explicitly deferred and require separate security and demand evidence.
 
 ## Open empirical questions
 
