@@ -6,7 +6,7 @@ Prerequisite: Node.js `>=20.11` available as `node`.
 
 The installed plugin includes its complete runtime, schemas and intentionally public test fixtures. It does not install npm packages at runtime, load third-party evaluators, initiate network requests, capture Codex sessions, access wallets, settle payments or infer audience/nonce pins from a dossier.
 
-Invoke `$evaldossier:verify` and supply the expected audience and nonce separately from the dossier. The Skill transports request data as one strict JSON line over structured stdin; no user-controlled value enters a shell command.
+Invoke `$evaldossier:verify` and supply the expected audience and nonce separately from the dossier. The Skill transports request data through a unique strict-JSON request file created with structured tooling; no user-controlled value enters a shell command and no live stdin is required.
 
 ## Install from this repository
 

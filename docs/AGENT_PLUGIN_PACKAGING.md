@@ -26,6 +26,8 @@ schemas/
 
 The only host-specific files are manifests, READMEs, Skills and thin launchers. No generated file is edited manually.
 
+The Codex root additionally carries one content-addressed, synthetic model-judgment reviewer fixture under `skills/verify/fixtures/`. It is host-specific submission material rather than part of the common runtime payload. The exact-tree gate requires it to remain byte-identical to `examples/model-judgment/` and recomputes its adjacent `SHA256SUMS` manifest.
+
 ## Build closure
 
 `npm run plugins:build` invokes `scripts/build-agent-plugins.mjs` in its explicit
@@ -73,15 +75,16 @@ in temporary storage, checks determinism and committed-payload drift without
 mutating either plugin root, and then:
 
 - enforces an exact file allowlist for both plugin roots;
+- requires the Codex reviewer fixture and manifest to match the canonical model-judgment example byte for byte;
 - rejects symbolic links, hard links and unsupported filesystem entries;
 - verifies every manifest digest;
 - scans text assets for local home paths and internal strategy/probe names;
 - copies both plugins to unrelated paths containing spaces, quotes and shell syntax;
 - runs with hostile `NODE_PATH`, no project `node_modules`, and no runtime installation;
-- verifies the same formal dossier through Codex structured stdin and Claude's structured request file;
+- verifies the same formal dossier through Codex's unique structured request file and Claude's structured request file;
 - checks semantic equality except for host identity;
 - preserves `MODEL_JUDGMENT → INCONCLUSIVE` and `economicAction: OUT_OF_SCOPE`;
-- rejects wrong pins, extra stdin documents, shell-like dossier paths, symlinked and hard-linked Claude requests;
+- rejects wrong pins, malformed legacy stdin documents, shell-like dossier paths, and linked request files;
 - runs fixed conformance through both plugins;
 - asserts that shell syntax in paths never creates a marker file.
 
@@ -91,8 +94,8 @@ The Codex and Claude official manifest validators are also run before release. C
 
 - EvalDossier package/runtime source: `0.2.0`.
 - Protocol: `0.1`.
-- Codex plugin: `0.1.0`.
-- Claude Code plugin: `0.1.0`.
+- Codex plugin: `0.2.0`.
+- Claude Code plugin: `0.2.0`.
 
 Any change to the common generated payload requires rebuilding and bumping both plugin versions before publication. A host-only manifest or Skill change may bump only that host plugin, but the common-payload equality gate must still pass.
 

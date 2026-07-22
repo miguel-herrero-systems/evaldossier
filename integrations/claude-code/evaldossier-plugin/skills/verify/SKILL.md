@@ -72,7 +72,7 @@ Invoke only this command. It contains no dossier path, pin, source label, or oth
 node ./integrations/claude-code/evaldossier-plugin/scripts/evaldossier-local.mjs verify-request --request ./.evaldossier-local/claude-code-request.json --json
 ```
 
-Treat a non-zero exit as failure. On success, report the returned typed `summary` without strengthening it. State that:
+Treat a non-zero exit as failure. On success, distinguish the legacy operation `status` from `verificationStatus`. Report `protocolOutcome` separately from the criterion-scoped `criterionResults`. Criterion and predicate identifiers and reason codes are exposed only as SHA-256 commitments. Do not infer task, procedure, or coverage axes unless a separately trusted signed profile defines that mapping and the expected identifiers arrive outside the dossier. Report the returned typed `summary` without strengthening it. State that:
 
 - `PINNED` proves equality only with the supplied expected value;
 - pin provenance is caller-declared and unverified;

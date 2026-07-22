@@ -1,6 +1,6 @@
 # Claude Code integration specification
 
-Status: standalone plugin `0.1.0` implemented and locally validated; repository and public-directory publication remain separate release decisions.
+Status: standalone plugin `0.2.0` implemented and locally validated; repository and public-directory publication remain separate release decisions.
 
 ## Decision
 
@@ -78,7 +78,7 @@ Every successful result preserves:
 - `MODEL_JUDGMENT → UNDETERMINED/INCONCLUSIVE`;
 - `economicAction: OUT_OF_SCOPE`.
 
-Signatures establish integrity and key control, not truth, identity, independence, authority or payment entitlement.
+Projection `evaldossier.model-safe-projection/0.2` separates operation `status` from `verificationStatus`, exposes the signed aggregate as `protocolOutcome`, and preserves criterion-scoped signed mappings as SHA-256 commitments in `criterionResults`. Signatures establish integrity and key control, not truth, identity, independence, authority or payment entitlement.
 
 ## Permissions and runtime boundary
 

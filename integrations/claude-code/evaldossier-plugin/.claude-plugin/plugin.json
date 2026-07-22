@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "evaldossier",
   "displayName": "EvalDossier",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Repository-contained offline verification of portable signed evaluation dossiers.",
   "author": {
     "name": "Miguel Herrero",

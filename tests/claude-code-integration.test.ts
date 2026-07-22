@@ -37,6 +37,8 @@ interface IntegrationOutput {
   integration: string;
   operation: string;
   status: "PASS" | "FAIL";
+  verificationStatus: "VERIFIED" | "NOT_VERIFIED";
+  projectionVersion: string;
   dossierLocation?: Record<string, unknown>;
   pinProvenance?: Record<string, unknown>;
   summary?: Record<string, unknown>;
@@ -159,6 +161,10 @@ test("Codex and Claude Code launchers return the same verification semantics", a
   assert.equal(claudeResult.stderr, "");
   assert.equal(codexOutput.integration, "evaldossier-codex-local/0.1");
   assert.equal(claudeOutput.integration, "evaldossier-claude-code-local/0.1");
+  assert.equal(codexOutput.verificationStatus, "VERIFIED");
+  assert.equal(claudeOutput.verificationStatus, "VERIFIED");
+  assert.equal(codexOutput.projectionVersion, "evaldossier.model-safe-projection/0.2");
+  assert.equal(claudeOutput.projectionVersion, "evaldossier.model-safe-projection/0.2");
   assert.deepEqual(withNeutralIntegration(claudeOutput), withNeutralIntegration(codexOutput));
 });
 
@@ -338,7 +344,7 @@ test("the Claude plugin declares a manual, non-preapproved, fixed-command Skill"
 
   assert.equal(manifest.name, "evaldossier");
   assert.equal(manifest.license, "MIT");
-  assert.equal(manifest.version, "0.1.0");
+  assert.equal(manifest.version, "0.2.0");
   assert.match(skill, /^---\n[\s\S]*disable-model-invocation: true\n/u);
   assert.match(skill, /disallowed-tools:/u);
   assert.doesNotMatch(skill, /^allowed-tools:/mu);

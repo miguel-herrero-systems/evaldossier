@@ -11500,11 +11500,15 @@ var PIN_SOURCES = Object.freeze({
 var VERIFY_NON_CLAIMS = Object.freeze([
   "PINNED establishes equality with a supplied expected value; it does not establish how that value was obtained.",
   "Pin provenance is caller-declared and is not independently verified by this integration.",
+  "The legacy status field reports operation success; verificationStatus reports dossier verification separately from the signed protocol outcome.",
+  "criterionResults preserve verified signed mappings through SHA-256 commitments; raw identifiers and reason codes are not emitted and external truth is not established.",
   "No truth, neutrality, legal identity, authority, or payment entitlement is established by this result alone."
 ]);
 var CONFORMANCE_NON_CLAIMS = Object.freeze([
   "Conformance establishes compatibility with declared protocol semantics, not evaluator certification.",
   "The bundled keys and evidence are public synthetic fixtures and establish no institutional identity or external adoption.",
+  "The legacy status field reports operation success; verificationStatus reports dossier verification separately from the signed protocol outcome.",
+  "criterionResults preserve verified signed mappings through SHA-256 commitments; raw identifiers and reason codes are not emitted and external truth is not established.",
   "No truth, neutrality, legal authority, or payment entitlement is established by this result alone."
 ]);
 var CONFIG_KEYS = Object.freeze(["hostName", "hostSlug", "integrationId"]);
@@ -11519,6 +11523,7 @@ var REQUEST_KEYS = Object.freeze([
 var REQUEST_SCHEMA_VERSION = "evaldossier.local-verification-request/0.1";
 var CONFORMANCE_REQUEST_KEYS = Object.freeze(["output", "schemaVersion"]);
 var CONFORMANCE_REQUEST_SCHEMA_VERSION = "evaldossier.local-conformance-request/0.1";
+var PROJECTION_VERSION = "evaldossier.model-safe-projection/0.2";
 var MAX_REQUEST_BYTES = 16 * 1024;
 var scriptDirectory = dirname2(fileURLToPath2(import.meta.url));
 var projectRoot = resolve4(scriptDirectory, "../..");
@@ -11615,7 +11620,40 @@ function localPathReference(value) {
     rawPathEmitted: false
   };
 }
-function modelSafeSummary(summary) {
+function modelSafeCriterionResults(verified) {
+  const criterionById = new Map(
+    verified.objects.request.criteria.map((criterion, criterionIndex) => [
+      criterion.criterionId,
+      {
+        criterionIndex,
+        predicateId: criterion.predicateId,
+        required: criterion.required
+      }
+    ])
+  );
+  return verified.objects.attestation.assessments.map((assessment) => {
+    const criterion = criterionById.get(assessment.criterionId);
+    if (criterion === void 0) {
+      fail("PROJECTION_INVARIANT_FAILED", "Verified assessment has no request criterion");
+    }
+    return {
+      criterionIndex: criterion.criterionIndex,
+      criterionIdSha256: sha256Text(assessment.criterionId),
+      predicateIdSha256: sha256Text(criterion.predicateId),
+      rawIdentifiersEmitted: false,
+      required: criterion.required === true,
+      basis: assessment.basis,
+      assessment: assessment.assessment,
+      predicateStatus: assessment.predicateStatus,
+      reasonCodeSha256: sha256Text(assessment.reasonCode),
+      rawReasonCodeEmitted: false,
+      evidenceArtifactCount: assessment.evidenceArtifactIds.length
+    };
+  }).sort((left, right) => left.criterionIndex - right.criterionIndex);
+}
+function modelSafeSummary(verified) {
+  const { summary } = verified;
+  const overallAssessment = verified.objects.attestation.overallAssessment;
   return {
     schema: summary.schema,
     integrity: summary.integrity,
@@ -11630,6 +11668,13 @@ function modelSafeSummary(summary) {
     overallBasis: summary.overallBasis,
     predicateStatuses: [...summary.predicateStatuses],
     obligationVerdict: summary.obligationVerdict,
+    protocolOutcome: {
+      overallAssessment: overallAssessment.assessment,
+      reasonCodeSha256: sha256Text(overallAssessment.reasonCode),
+      rawReasonCodeEmitted: false,
+      obligationVerdict: summary.obligationVerdict
+    },
+    criterionResults: modelSafeCriterionResults(verified),
     economicAction: summary.economicAction,
     untrustedText: {
       dossierIdSha256: sha256Text(summary.dossierId),
@@ -11783,6 +11828,13 @@ async function readVerificationRequest(requestInput) {
   });
   return normalizeVerificationRequest(parsed);
 }
+async function readConformanceRequest(requestInput) {
+  const parsed = await readStrictRequestFile(requestInput, {
+    code: "INVALID_CONFORMANCE_REQUEST",
+    name: "conformance request"
+  });
+  return normalizeConformanceRequest(parsed);
+}
 async function readOneJsonLineFromStdin(errorCode, label) {
   if (process.stdin.isTTY) {
     fail(errorCode, `${label} requires structured non-interactive stdin`);
@@ -11897,13 +11949,15 @@ async function verifyInputs(config, { expectedAudience, expectedDossierNonce, au
     integration: config.integrationId,
     operation: "verify",
     status: "PASS",
+    verificationStatus: "VERIFIED",
+    projectionVersion: PROJECTION_VERSION,
     dossierLocation: localPathReference(dossierPath),
     pinProvenance: {
       audience: normalizedAudienceSource,
       nonce: normalizedNonceSource,
       assurance: "CALLER_DECLARED_NOT_VERIFIED"
     },
-    summary: modelSafeSummary(verified.summary),
+    summary: modelSafeSummary(verified),
     nonClaims: [...VERIFY_NON_CLAIMS]
   };
 }
@@ -11965,6 +12019,8 @@ async function runConformance(config, outputInput) {
     integration: config.integrationId,
     operation: "conformance",
     status: "PASS",
+    verificationStatus: "VERIFIED",
+    projectionVersion: PROJECTION_VERSION,
     dossierLocation: localPathReference(outputDirectory),
     pinProvenance: {
       audience: "PUBLIC_TEST_FIXTURE",
@@ -11972,13 +12028,18 @@ async function runConformance(config, outputInput) {
       assurance: "SYNTHETIC_CONFORMANCE_ONLY"
     },
     checks: result.checks,
-    summary: modelSafeSummary(result.verified.summary),
+    summary: modelSafeSummary(result.verified),
     nonClaims: [...CONFORMANCE_NON_CLAIMS]
   };
 }
 async function conformanceCommand(config, args) {
   const values = parseOptions(args, /* @__PURE__ */ new Set(["--output"]), config.hostName);
   return runConformance(config, required(values, "--output"));
+}
+async function conformanceRequestCommand(config, args) {
+  const values = parseOptions(args, /* @__PURE__ */ new Set(["--request"]), config.hostName);
+  const request = await readConformanceRequest(required(values, "--request"));
+  return runConformance(config, request.output);
 }
 async function conformanceStdinCommand(config, args) {
   const values = parseOptions(args, /* @__PURE__ */ new Set(), config.hostName);
@@ -12006,12 +12067,15 @@ async function main(config, args) {
   if (operation === "conformance") {
     return conformanceCommand(config, rest);
   }
+  if (operation === "conformance-request") {
+    return conformanceRequestCommand(config, rest);
+  }
   if (operation === "conformance-stdin") {
     return conformanceStdinCommand(config, rest);
   }
   fail(
     "UNKNOWN_OPERATION",
-    "Operation must be verify, verify-request, verify-stdin, conformance or conformance-stdin"
+    "Operation must be verify, verify-request, verify-stdin, conformance, conformance-request or conformance-stdin"
   );
 }
 async function runLocalIntegrationCli(configInput, args = process.argv.slice(2)) {
@@ -12023,13 +12087,15 @@ async function runLocalIntegrationCli(configInput, args = process.argv.slice(2))
 `);
   } catch (error) {
     const integrationError = error instanceof IntegrationError ? error : new IntegrationError("INTEGRATION_FAILED", "Unexpected integration failure");
-    const operation = args[0] === "verify" || args[0] === "verify-request" || args[0] === "verify-stdin" ? "verify" : args[0] === "conformance" || args[0] === "conformance-stdin" ? "conformance" : "unknown";
+    const operation = args[0] === "verify" || args[0] === "verify-request" || args[0] === "verify-stdin" ? "verify" : args[0] === "conformance" || args[0] === "conformance-request" || args[0] === "conformance-stdin" ? "conformance" : "unknown";
     process.stdout.write(
       `${JSON.stringify(
         {
           integration: config?.integrationId ?? "evaldossier-local/invalid-config",
           operation,
           status: "FAIL",
+          verificationStatus: "NOT_VERIFIED",
+          projectionVersion: PROJECTION_VERSION,
           error: {
             code: integrationError.code,
             message: integrationError.message,

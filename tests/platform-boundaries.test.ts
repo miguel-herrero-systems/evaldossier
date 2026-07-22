@@ -62,6 +62,44 @@ function runLauncherThroughStdin(
   });
 }
 
+async function runLauncherThroughRequestFile(
+  t: TestContext,
+  operation: "verify-request" | "conformance-request",
+  request: Record<string, string>,
+): Promise<LauncherResult> {
+  const requestRoot = await temporaryDirectory(t, `codex-${operation}`);
+  const requestPath = join(requestRoot, "request.json");
+  await writeFile(requestPath, `${JSON.stringify(request)}\n`, {
+    encoding: "utf8",
+    flag: "wx",
+    mode: 0o600,
+  });
+
+  return new Promise((resolveResult, reject) => {
+    const child = spawn(
+      process.execPath,
+      [CODEX_LAUNCHER, operation, "--request", requestPath, "--json"],
+      {
+        cwd: CODEX_SKILL_ROOT,
+        env: { PATH: process.env.PATH ?? "" },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => resolveResult({ code, stdout, stderr }));
+  });
+}
+
 test("dossier paths reject reserved Win32 device segments portably", async (t) => {
   const dossierRoot = await temporaryDirectory(t, "windows-device-paths");
   const reservedPaths = [
@@ -214,27 +252,66 @@ test("assembly reserves a new output root before reading source artifacts", asyn
   assert.equal(await readFile(markerPath, "utf8"), "existing output must remain untouched");
 });
 
-test("the source Codex Skill transports caller values only through structured stdin", async () => {
+test("the source Codex Skill uses a unique structured request file and no live stdin", async () => {
   const skillPath = join(CODEX_SKILL_ROOT, "SKILL.md");
   const skill = await readFile(skillPath, "utf8");
 
+  assert.match(skill, /exact fixed command `mktemp -d \/tmp\/evaldossier-request\.XXXXXXXX`/u);
+  assert.match(skill, /structured `apply_patch` tool/u);
+  assert.match(skill, /opaque system token/u);
+  assert.match(skill, /compare it byte-for-byte before each call/u);
   assert.match(
     skill,
-    /node \.\/scripts\/evaldossier-local\.mjs verify-stdin --json/u,
+    /verify-request --request <system-generated-request-directory>\/request\.json --json/u,
   );
   assert.match(
     skill,
-    /node \.\/scripts\/evaldossier-local\.mjs conformance-stdin --json/u,
+    /conformance-request --request <system-generated-request-directory>\/request\.json --json/u,
   );
   assert.match(skill, /structured working-directory field/u);
   assert.doesNotMatch(skill, /<skill-directory>/u);
-  assert.match(skill, /If structured non-TTY stdin is unavailable, stop/u);
+  assert.match(skill, /Never use recursive deletion/u);
+  assert.doesNotMatch(skill, /structured stdin tool/u);
   assert.doesNotMatch(skill, /evaldossier-local\.mjs verify \\\n/u);
   assert.doesNotMatch(skill, /--dossier <existing-local-directory>/u);
   assert.doesNotMatch(skill, /--output <new-local-directory>/u);
 });
 
-test("the fixed Codex commands accept one structured stdin request", async (t) => {
+test("the fixed Codex request-file commands work without live stdin", async (t) => {
+  const verification = await runLauncherThroughRequestFile(t, "verify-request", {
+    schemaVersion: "evaldossier.local-verification-request/0.1",
+    dossier: join(PROJECT_ROOT, "examples", "formal"),
+    audience: "evaldossier.demo.consumer",
+    nonce: "Zm9ybWFsLWRvc3NpZXItbm9uY2U",
+    audienceSource: "user-request",
+    nonceSource: "upstream-context",
+  });
+  const verificationOutput = JSON.parse(verification.stdout) as {
+    status?: string;
+    verificationStatus?: string;
+  };
+
+  assert.equal(verification.code, 0, verification.stderr);
+  assert.equal(verificationOutput.status, "PASS");
+  assert.equal(verificationOutput.verificationStatus, "VERIFIED");
+
+  const temporaryRoot = await temporaryDirectory(t, "codex-conformance-request-output");
+  const outputDirectory = join(temporaryRoot, "new-dossier");
+  const conformance = await runLauncherThroughRequestFile(t, "conformance-request", {
+    schemaVersion: "evaldossier.local-conformance-request/0.1",
+    output: outputDirectory,
+  });
+  const conformanceOutput = JSON.parse(conformance.stdout) as {
+    status?: string;
+    verificationStatus?: string;
+  };
+
+  assert.equal(conformance.code, 0, conformance.stderr);
+  assert.equal(conformanceOutput.status, "PASS");
+  assert.equal(conformanceOutput.verificationStatus, "VERIFIED");
+});
+
+test("the legacy Codex stdin commands remain compatible", async (t) => {
   const verification = await runLauncherThroughStdin("verify-stdin", {
     schemaVersion: "evaldossier.local-verification-request/0.1",
     dossier: join(PROJECT_ROOT, "examples", "formal"),

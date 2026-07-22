@@ -75,6 +75,40 @@ async function inventory(root) {
   return result;
 }
 
+const codexReviewerFixtureRoot = join(
+  codexPluginRoot,
+  "skills",
+  "verify",
+  "fixtures",
+  "model-judgment",
+);
+const codexReviewerFixtureInventory = await inventory(codexReviewerFixtureRoot);
+const canonicalModelJudgmentInventory = await inventory(
+  join(projectRoot, "examples", "model-judgment"),
+);
+assert.deepEqual(
+  codexReviewerFixtureInventory,
+  canonicalModelJudgmentInventory,
+  "Codex reviewer fixture must remain byte-identical to examples/model-judgment",
+);
+const expectedReviewerManifest = `${codexReviewerFixtureInventory
+  .map((entry) => `${entry.sha256}  model-judgment/${entry.path}`)
+  .join("\n")}\n`;
+assert.equal(
+  await readFile(
+    join(codexPluginRoot, "skills", "verify", "fixtures", "SHA256SUMS"),
+    "utf8",
+  ),
+  expectedReviewerManifest,
+  "Codex reviewer fixture manifest drifted",
+);
+const codexReviewerHostFiles = [
+  "skills/verify/fixtures/SHA256SUMS",
+  ...codexReviewerFixtureInventory.map(
+    (entry) => `skills/verify/fixtures/model-judgment/${entry.path}`,
+  ),
+];
+
 async function validateManifest(pluginRoot) {
   const manifest = JSON.parse(
     await readFile(join(pluginRoot, "runtime", "BUNDLE_MANIFEST.json"), "utf8"),
@@ -190,6 +224,7 @@ await assertExactPluginTree(codexPluginRoot, [
   "skills/verify/SKILL.md",
   "skills/verify/agents/openai.yaml",
   "skills/verify/scripts/evaldossier-local.mjs",
+  ...codexReviewerHostFiles,
 ]);
 await assertExactPluginTree(claudePluginRoot, [
   ".claude-plugin/plugin.json",
@@ -197,6 +232,16 @@ await assertExactPluginTree(claudePluginRoot, [
   "scripts/evaldossier-local.mjs",
   "skills/verify/SKILL.md",
 ]);
+const [codexPluginManifest, claudePluginManifest] = await Promise.all([
+  readFile(join(codexPluginRoot, ".codex-plugin", "plugin.json"), "utf8").then((text) =>
+    JSON.parse(text),
+  ),
+  readFile(join(claudePluginRoot, ".claude-plugin", "plugin.json"), "utf8").then((text) =>
+    JSON.parse(text),
+  ),
+]);
+assert.equal(codexPluginManifest.version, "0.2.0");
+assert.equal(claudePluginManifest.version, "0.2.0");
 
 const [codexInventory, claudeInventory] = await Promise.all([
   inventory(codexPluginRoot),
@@ -239,14 +284,19 @@ try {
   );
   const claudeLauncher = join(isolatedClaude, "scripts", "evaldossier-local.mjs");
   const formalRequest = verificationRequest(formalDossier);
+  const codexRequestPath = join(workspace, "codex-request.json");
   const claudeRequestPath = join(workspace, "claude-request.json");
-  await writeFile(claudeRequestPath, JSON.stringify(formalRequest), "utf8");
+  await Promise.all([
+    writeFile(codexRequestPath, oneLine(formalRequest), { flag: "wx", mode: 0o600 }),
+    writeFile(claudeRequestPath, oneLine(formalRequest), { flag: "wx", mode: 0o600 }),
+  ]);
 
   const [codexVerify, claudeVerify] = await Promise.all([
-    runNode(codexLauncher, ["verify-stdin", "--json"], {
-      cwd: workspace,
-      stdin: oneLine(formalRequest),
-    }),
+    runNode(
+      codexLauncher,
+      ["verify-request", "--request", codexRequestPath, "--json"],
+      { cwd: workspace },
+    ),
     runNode(
       claudeLauncher,
       ["verify-request", "--request", claudeRequestPath, "--json"],
@@ -258,25 +308,43 @@ try {
   assert.deepEqual(withoutIntegration(parsed(codexVerify)), withoutIntegration(parsed(claudeVerify)));
   assert.equal(parsed(codexVerify).integration, "evaldossier-codex-plugin/0.1");
   assert.equal(parsed(claudeVerify).integration, "evaldossier-claude-code-plugin/0.1");
+  assert.equal(parsed(codexVerify).verificationStatus, "VERIFIED");
+  assert.equal(parsed(claudeVerify).verificationStatus, "VERIFIED");
+  assert.equal(
+    parsed(codexVerify).projectionVersion,
+    "evaldossier.model-safe-projection/0.2",
+  );
+  assert.ok(parsed(codexVerify).summary.criterionResults.length > 0);
   assert.equal(parsed(codexVerify).summary.economicAction, "OUT_OF_SCOPE");
 
   const modelRequest = verificationRequest(modelDossier, {
     nonce: "synthetic-model-judgment-nonce-0001",
     nonceSource: "user-request",
   });
-  const modelResult = await runNode(codexLauncher, ["verify-stdin", "--json"], {
-    cwd: workspace,
-    stdin: oneLine(modelRequest),
-  });
+  const modelRequestPath = join(workspace, "codex-model-request.json");
+  await writeFile(modelRequestPath, oneLine(modelRequest), { flag: "wx", mode: 0o600 });
+  const modelResult = await runNode(
+    codexLauncher,
+    ["verify-request", "--request", modelRequestPath, "--json"],
+    { cwd: workspace },
+  );
   assert.equal(modelResult.code, 0, modelResult.stderr);
   assert.equal(parsed(modelResult).summary.overallBasis, "MODEL_JUDGMENT");
   assert.equal(parsed(modelResult).summary.obligationVerdict, "INCONCLUSIVE");
 
-  const wrongPin = await runNode(codexLauncher, ["verify-stdin", "--json"], {
-    cwd: workspace,
-    stdin: oneLine(verificationRequest(formalDossier, { audience: "wrong" })),
-  });
+  const wrongPinRequestPath = join(workspace, "codex-wrong-pin-request.json");
+  await writeFile(
+    wrongPinRequestPath,
+    oneLine(verificationRequest(formalDossier, { audience: "wrong" })),
+    { flag: "wx", mode: 0o600 },
+  );
+  const wrongPin = await runNode(
+    codexLauncher,
+    ["verify-request", "--request", wrongPinRequestPath, "--json"],
+    { cwd: workspace },
+  );
   assert.equal(wrongPin.code, 1);
+  assert.equal(parsed(wrongPin).verificationStatus, "NOT_VERIFIED");
   assert.equal(parsed(wrongPin).error.code, "VERIFICATION_FAILED");
 
   const extraLine = await runNode(codexLauncher, ["verify-stdin", "--json"], {
@@ -287,10 +355,16 @@ try {
   assert.equal(parsed(extraLine).error.code, "INVALID_VERIFICATION_REQUEST");
 
   const injectedPath = join(workspace, "$(touch marker)");
-  const injected = await runNode(codexLauncher, ["verify-stdin", "--json"], {
-    cwd: workspace,
-    stdin: oneLine(verificationRequest(injectedPath)),
+  const injectedRequestPath = join(workspace, "codex-injected-path-request.json");
+  await writeFile(injectedRequestPath, oneLine(verificationRequest(injectedPath)), {
+    flag: "wx",
+    mode: 0o600,
   });
+  const injected = await runNode(
+    codexLauncher,
+    ["verify-request", "--request", injectedRequestPath, "--json"],
+    { cwd: workspace },
+  );
   assert.equal(injected.code, 1);
   await assert.rejects(access(join(workspace, "marker")), { code: "ENOENT" });
 
@@ -300,26 +374,35 @@ try {
   const hardlinkRequest = join(workspace, "request-hardlink.json");
   await symlink(targetRequest, symlinkRequest);
   await link(targetRequest, hardlinkRequest);
-  for (const requestPath of [symlinkRequest, hardlinkRequest]) {
-    const result = await runNode(
-      claudeLauncher,
-      ["verify-request", "--request", requestPath, "--json"],
-      { cwd: workspace },
-    );
-    assert.equal(result.code, 1);
-    assert.equal(parsed(result).error.code, "INVALID_VERIFICATION_REQUEST");
+  for (const launcher of [codexLauncher, claudeLauncher]) {
+    for (const requestPath of [symlinkRequest, hardlinkRequest]) {
+      const result = await runNode(
+        launcher,
+        ["verify-request", "--request", requestPath, "--json"],
+        { cwd: workspace },
+      );
+      assert.equal(result.code, 1);
+      assert.equal(parsed(result).error.code, "INVALID_VERIFICATION_REQUEST");
+    }
   }
 
   const codexOutput = join(workspace, "codex conformance");
   const claudeOutput = join(workspace, "claude conformance");
-  const [codexConformance, claudeConformance] = await Promise.all([
-    runNode(codexLauncher, ["conformance-stdin", "--json"], {
-      cwd: workspace,
-      stdin: oneLine({
-        schemaVersion: "evaldossier.local-conformance-request/0.1",
-        output: codexOutput,
-      }),
+  const codexConformanceRequestPath = join(workspace, "codex-conformance-request.json");
+  await writeFile(
+    codexConformanceRequestPath,
+    oneLine({
+      schemaVersion: "evaldossier.local-conformance-request/0.1",
+      output: codexOutput,
     }),
+    { flag: "wx", mode: 0o600 },
+  );
+  const [codexConformance, claudeConformance] = await Promise.all([
+    runNode(
+      codexLauncher,
+      ["conformance-request", "--request", codexConformanceRequestPath, "--json"],
+      { cwd: workspace },
+    ),
     runNode(
       claudeLauncher,
       ["conformance", "--output", claudeOutput, "--json"],

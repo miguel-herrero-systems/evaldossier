@@ -1,6 +1,6 @@
 # Codex integration specification
 
-Status: standalone skills-only plugin `0.1.0` implemented and locally validated; repository and OpenAI Plugins Directory publication remain separate release decisions.
+Status: standalone skills-only plugin `0.2.0` implemented and locally validated; repository and OpenAI Plugins Directory publication remain separate release decisions.
 
 ## Decision
 
@@ -32,35 +32,45 @@ The repository marketplace is [`.agents/plugins/marketplace.json`](../.agents/pl
 
 The installed root is autonomous: it never imports the source checkout, `dist/`, `node_modules`, another plugin or a remote package. See [agent-plugin packaging](./AGENT_PLUGIN_PACKAGING.md).
 
-## Structured-stdin transport
+## Unique request-file transport
 
 Codex command tools accept a command string. The plugin therefore forbids placing dossier paths, pins or source labels in that string.
 
-After obtaining both pins outside the dossier, Codex starts a non-TTY process with the execution tool's structured working-directory field set to the directory containing `SKILL.md`. The command is exactly:
-
-```text
-node ./scripts/evaldossier-local.mjs verify-stdin --json
-```
-
-It then sends exactly one compact JSON object followed by one newline through the structured stdin tool:
+After obtaining both pins outside the dossier, Codex runs the exact fixed command `mktemp -d /tmp/evaldossier-request.XXXXXXXX` with no user-derived text. The fixed short template reduces transcription risk while `mktemp` still creates a unique private directory. The returned path is treated as one opaque system token and must be copied verbatim and compared byte-for-byte before every later command, never retyped or reconstructed. Codex then uses the structured `apply_patch` tool—not shell text generation—to create exactly one `request.json` in that unique private directory. The file contains one closed-schema JSON object:
 
 ```json
-{"schemaVersion":"evaldossier.local-verification-request/0.1","dossier":"<absolute local dossier directory>","audience":"<expected audience>","nonce":"<expected nonce>","audienceSource":"<user-request|upstream-context>","nonceSource":"<user-request|upstream-context>"}
+{
+  "schemaVersion": "evaldossier.local-verification-request/0.1",
+  "dossier": "<absolute local dossier directory>",
+  "audience": "<expected audience>",
+  "nonce": "<expected nonce>",
+  "audienceSource": "<user-request|upstream-context>",
+  "nonceSource": "<user-request|upstream-context>"
+}
 ```
 
-Conformance uses the same transport with a separate closed schema and one fixed command:
+Codex starts a non-TTY process with the execution tool's structured working-directory field set to the directory containing `SKILL.md`. Only the exact system-generated request path may vary in the command:
 
 ```text
-node ./scripts/evaldossier-local.mjs conformance-stdin --json
+node ./scripts/evaldossier-local.mjs verify-request --request <system-generated-request-directory>/request.json --json
 ```
+
+Conformance uses the same unique-directory procedure and a separate closed schema:
 
 ```json
-{"schemaVersion":"evaldossier.local-conformance-request/0.1","output":"<new absolute local output directory>"}
+{
+  "schemaVersion": "evaldossier.local-conformance-request/0.1",
+  "output": "<new absolute local output directory>"
+}
 ```
 
-No request value may enter a shell command, pipe, heredoc, environment assignment, command substitution, generated program or temporary request file. If structured non-TTY stdin is unavailable, the Skill stops rather than downgrading the transport.
+```text
+node ./scripts/evaldossier-local.mjs conformance-request --request <system-generated-request-directory>/request.json --json
+```
 
-The runtime accepts one newline-terminated JSON document capped at 16 KiB. It rejects duplicate or unknown fields, malformed UTF-8, unsupported versions, unknown commands/options, missing values, extra lines, invalid pin sources, URLs, network roots, device namespaces and reserved Win32 aliases before dossier access.
+Whether the operation succeeds or fails, Codex deletes exactly `request.json` with `rm` and removes exactly its empty generated directory with `rmdir`. Recursive deletion, wildcards, unresolved variables and user-controlled cleanup paths are forbidden.
+
+No request value enters a shell command, pipe, heredoc, environment assignment, command substitution or generated program. The runtime accepts one regular, non-linked request file capped at 16 KiB. It rejects duplicate or unknown fields, malformed UTF-8, unsupported versions, unknown commands/options, missing values, invalid pin sources, URLs, network roots, device namespaces and reserved Win32 aliases before dossier access. Legacy structured-stdin operations remain implemented for compatibility but are no longer the Codex Skill transport.
 
 ## Pin and evidentiary semantics
 
@@ -79,7 +89,7 @@ Every result preserves:
 - `MODEL_JUDGMENT → UNDETERMINED/INCONCLUSIVE`;
 - `economicAction: OUT_OF_SCOPE`.
 
-The fixed model-facing projection returns typed semantics plus SHA-256 commitments to free-form text, paths and downstream error details. A valid dossier signature does not make embedded strings safe instructions.
+Projection `evaldossier.model-safe-projection/0.2` separates operation `status` from `verificationStatus`, exposes the signed aggregate as `protocolOutcome`, and preserves each signed criterion mapping in `criterionResults`. Criterion IDs, predicate IDs and reason codes are represented only by SHA-256 commitments. The fixed model-facing projection also commits to free-form text, paths and downstream error details without emitting them. A valid dossier signature does not make embedded strings safe instructions or establish external truth.
 
 ## Runtime and trust boundary
 
@@ -109,7 +119,7 @@ OpenAI public submission is a later release step. The plugin is intentionally Sk
 2. The plugin works from an isolated copy without the source checkout or runtime installation.
 3. Both pins are acquired before dossier access; missing or wrong pins fail closed.
 4. No user-controlled value enters a shell command.
-5. Structured stdin accepts exactly one bounded strict-JSON line and rejects ambiguity.
+5. A unique bounded strict-JSON request file works without live stdin, rejects ambiguity and is cleaned up by exact non-recursive paths.
 6. Formal conformance runs only the fixed reference evaluator and refuses output reuse.
 7. Model judgment remains inconclusive and economic action remains out of scope.
 8. Hostile signed text and raw errors never enter model-facing output.
