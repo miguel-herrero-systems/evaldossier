@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Verify a local EvalDossier with independently supplied audience and nonce pins, or run the fixed synthetic conformance path. Use only when the user explicitly invokes this repository-contained workflow.
+description: Verify a local EvalDossier with caller-supplied expected audience and nonce pins, or run the fixed synthetic conformance path. Use only when the user explicitly invokes this repository-contained workflow.
 disable-model-invocation: true
 disallowed-tools:
   - Agent
@@ -60,7 +60,7 @@ Only after both pins and their sources are present:
    }
    ```
 
-Do not add fields. Do not place the JSON or any user-controlled value in a shell command. Do not derive a shell path from a host substitution, environment variable, project path, session identifier, or model-generated suffix. The ignored request file remains local and may contain contextual values; do not describe it as secret storage.
+Do not add fields. Do not place the JSON or any user-controlled value in a shell command. Do not derive a shell path from a host substitution, environment variable, project path, session identifier, or model-generated suffix. The fixed request file remains local and may contain contextual values; do not describe it as secret storage. A host workspace may not ignore `.evaldossier-local/`, so add it to local ignore rules or remove only the exact request file after use.
 
 The fixed file is a single local request slot. Do not run concurrent verification invocations in one checkout. After obtaining fresh pins, Write may replace only this exact request file; never read or reuse its previous contents.
 

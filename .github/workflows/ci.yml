@@ -24,3 +24,5 @@ jobs:
       - run: npm run verify:demo
       - run: npm run demo:sdk
       - run: npm run pack:check
+      - run: npm run plugins:check
+      - run: npm audit --audit-level=high

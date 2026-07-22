@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
-import { lstat, mkdir, open, readdir, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from "node:path";
+import { lstat, mkdir, open, readdir, rm, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   canonicalBytes,
   digestOfObject,
@@ -11,7 +11,7 @@ import {
   signObject,
   verifyObjectSignature,
 } from "./crypto.js";
-import { readSafeDossierFile } from "./fs-safe.js";
+import { readSafeDossierFile, validateDossierRelativePath } from "./fs-safe.js";
 import { parseJsonStrict } from "./json.js";
 import { renderAttestationReport, summarizeAttestation } from "./report.js";
 import { validateProtocolObject } from "./schema-validator.js";
@@ -248,20 +248,9 @@ async function writeCommittedFile(
 }
 
 function safeOutputPath(root: string, relativePath: string): string {
-  if (
-    relativePath.length === 0 ||
-    Buffer.byteLength(relativePath, "utf8") > 200 ||
-    relativePath.includes("\0") ||
-    relativePath.includes("\\") ||
-    isAbsolute(relativePath) ||
-    win32.isAbsolute(relativePath) ||
-    !/^(?:objects|evidence|reports)\/[A-Za-z0-9._/-]+$/.test(relativePath)
-  ) {
+  const segments = validateDossierRelativePath(relativePath, 200);
+  if (!/^(?:objects|evidence|reports)\/[A-Za-z0-9._/-]+$/.test(relativePath)) {
     throw new Error(`Unsafe dossier output path: ${relativePath}`);
-  }
-  const segments = relativePath.split("/");
-  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
-    throw new Error(`Unsafe dossier output path segment: ${relativePath}`);
   }
   const absoluteRoot = resolve(root);
   const destination = resolve(absoluteRoot, ...segments);
@@ -270,6 +259,21 @@ function safeOutputPath(root: string, relativePath: string): string {
     throw new Error(`Dossier output path escapes its root: ${relativePath}`);
   }
   return destination;
+}
+
+function prevalidateOutputPlan(root: string, relativePaths: readonly string[]): void {
+  if (relativePaths.length > MAX_DOSSIER_ENTRIES) {
+    throw new Error(`Dossier contains too many entries: ${relativePaths.length}`);
+  }
+  const portablePaths = new Set<string>();
+  for (const relativePath of relativePaths) {
+    safeOutputPath(root, relativePath);
+    const portablePath = relativePath.toLowerCase();
+    if (portablePaths.has(portablePath)) {
+      throw new Error(`Duplicate or case-colliding dossier path: ${relativePath}`);
+    }
+    portablePaths.add(portablePath);
+  }
 }
 
 async function readSourceArtifact(path: string): Promise<Buffer> {
@@ -326,8 +330,6 @@ export async function assembleDossier(
   exporterKey: PrivateEd25519Jwk,
   options: AssembleDossierOptions,
 ): Promise<JsonObject> {
-  await mkdir(outputDirectory, { recursive: false });
-
   const objectValues: Array<[keyof typeof OBJECT_FILES, JsonObject]> = [
     ["EVALUATOR_MANIFEST", run.manifest],
     ["PROFILE_DEFINITION", run.profile],
@@ -335,86 +337,122 @@ export async function assembleDossier(
     ["EVIDENCE_BUNDLE", run.evidenceBundle],
     ["EVALUATION_ATTESTATION", run.attestation],
   ];
+  // Capture path-bearing metadata before the first await so a direct
+  // assembleDossier caller cannot swap in an unvalidated destination while
+  // protocol objects are being checked.
+  const sourceArtifacts = run.sourceArtifacts.map((source) => ({ ...source }));
 
-  const entries: DossierEntry[] = [];
-  for (const [role, value] of objectValues) {
-    entries.push(await writeProtocolObject(outputDirectory, OBJECT_FILES[role], value, role));
-  }
+  prevalidateOutputPlan(outputDirectory, [
+    ...objectValues.map(([role]) => OBJECT_FILES[role]),
+    ...sourceArtifacts.map(({ dossierPath }) => dossierPath),
+    "reports/summary.md",
+  ]);
 
-  for (const source of run.sourceArtifacts) {
-    const bytes = await readSourceArtifact(source.sourcePath);
+  const outputRoot = resolve(outputDirectory);
+  await mkdir(outputRoot, { recursive: false });
+  const createdRoot = await lstat(outputRoot);
+  let complete = false;
+  try {
+    const entries: DossierEntry[] = [];
+    for (const [role, value] of objectValues) {
+      entries.push(await writeProtocolObject(outputRoot, OBJECT_FILES[role], value, role));
+    }
+
+    // Source artifacts are read, committed and released one at a time. This
+    // preserves the 5 MiB per-file bound without retaining the aggregate
+    // dossier payload in memory.
+    for (const source of sourceArtifacts) {
+      const bytes = await readSourceArtifact(source.sourcePath);
+      entries.push(
+        await writeCommittedFile(
+          outputRoot,
+          source.dossierPath,
+          bytes,
+          "SOURCE_ARTIFACT",
+          source.mediaType,
+          true,
+        ),
+      );
+    }
+
+    const humanReport = Buffer.from(renderAttestationReport(run.attestation), "utf8");
     entries.push(
       await writeCommittedFile(
-        outputDirectory,
-        source.dossierPath,
-        bytes,
-        "SOURCE_ARTIFACT",
-        source.mediaType,
-        true,
+        outputRoot,
+        "reports/summary.md",
+        humanReport,
+        "HUMAN_REPORT",
+        "text/markdown",
+        false,
       ),
     );
+    requireUniqueEntries(entries);
+
+    const exporterPublicKey = publicJwkFromPrivate(exporterKey);
+    const unsigned: JsonObject = {
+      protocolVersion: "evaldossier/0.1",
+      schemaVersion: "evaldossier.dossier/0.1",
+      dossierId: options.dossierId,
+      generatedAt: options.generatedAt,
+      classification: options.classification,
+      exporter: {
+        id: options.exporterId,
+        key: exporterPublicKey as unknown as JsonObject,
+      },
+      signingKeyId: exporterPublicKey.kid,
+      artifacts: entries.map(entryJson),
+      bindings: {
+        manifestDigest: digestOfObject(run.manifest) as unknown as JsonObject,
+        profileDigest: digestOfObject(run.profile) as unknown as JsonObject,
+        requestDigest: digestOfObject(run.request) as unknown as JsonObject,
+        evidenceBundleDigest: digestOfObject(run.evidenceBundle) as unknown as JsonObject,
+        attestationDigest: digestOfObject(run.attestation) as unknown as JsonObject,
+      },
+      warnings: options.warnings ?? [],
+      economicAction: "OUT_OF_SCOPE",
+      signatureContext: {
+        audience: options.audience,
+        nonce: options.nonce,
+      },
+    };
+
+    const dossier = signObject(unsigned, exporterKey);
+    const dossierValidation = await validateProtocolObject(dossier);
+    if (!dossierValidation.valid) {
+      throw new Error(`Invalid dossier: ${schemaErrorText(dossierValidation.errors)}`);
+    }
+    await writeFile(join(outputRoot, "dossier.json"), canonicalBytes(dossier), { flag: "wx" });
+    complete = true;
+    return dossier;
+  } finally {
+    if (!complete) {
+      try {
+        const currentRoot = await lstat(outputRoot);
+        if (
+          !currentRoot.isSymbolicLink() &&
+          currentRoot.isDirectory() &&
+          currentRoot.dev === createdRoot.dev &&
+          currentRoot.ino === createdRoot.ino
+        ) {
+          await rm(outputRoot, { recursive: true, force: true });
+        }
+      } catch (error) {
+        if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+          throw error;
+        }
+      }
+    }
   }
-
-  const humanReport = Buffer.from(renderAttestationReport(run.attestation), "utf8");
-  entries.push(
-    await writeCommittedFile(
-      outputDirectory,
-      "reports/summary.md",
-      humanReport,
-      "HUMAN_REPORT",
-      "text/markdown",
-      false,
-    ),
-  );
-
-  if (entries.length > MAX_DOSSIER_ENTRIES) {
-    throw new Error(`Dossier contains too many entries: ${entries.length}`);
-  }
-
-  const exporterPublicKey = publicJwkFromPrivate(exporterKey);
-  const unsigned: JsonObject = {
-    protocolVersion: "evaldossier/0.1",
-    schemaVersion: "evaldossier.dossier/0.1",
-    dossierId: options.dossierId,
-    generatedAt: options.generatedAt,
-    classification: options.classification,
-    exporter: {
-      id: options.exporterId,
-      key: exporterPublicKey as unknown as JsonObject,
-    },
-    signingKeyId: exporterPublicKey.kid,
-    artifacts: entries.map(entryJson),
-    bindings: {
-      manifestDigest: digestOfObject(run.manifest) as unknown as JsonObject,
-      profileDigest: digestOfObject(run.profile) as unknown as JsonObject,
-      requestDigest: digestOfObject(run.request) as unknown as JsonObject,
-      evidenceBundleDigest: digestOfObject(run.evidenceBundle) as unknown as JsonObject,
-      attestationDigest: digestOfObject(run.attestation) as unknown as JsonObject,
-    },
-    warnings: options.warnings ?? [],
-    economicAction: "OUT_OF_SCOPE",
-    signatureContext: {
-      audience: options.audience,
-      nonce: options.nonce,
-    },
-  };
-
-  const dossier = signObject(unsigned, exporterKey);
-  const dossierValidation = await validateProtocolObject(dossier);
-  if (!dossierValidation.valid) {
-    throw new Error(`Invalid dossier: ${schemaErrorText(dossierValidation.errors)}`);
-  }
-  await writeFile(join(outputDirectory, "dossier.json"), canonicalBytes(dossier), { flag: "wx" });
-  return dossier;
 }
 
 function requireUniqueEntries(entries: DossierEntry[]): void {
   const paths = new Set<string>();
   for (const entry of entries) {
-    if (paths.has(entry.path)) {
-      throw new Error(`Duplicate dossier path: ${entry.path}`);
+    const portablePath = entry.path.toLowerCase();
+    if (paths.has(portablePath)) {
+      throw new Error(`Duplicate or case-colliding dossier path: ${entry.path}`);
     }
-    paths.add(entry.path);
+    paths.add(portablePath);
   }
 
   for (const role of PROTOCOL_ROLES) {

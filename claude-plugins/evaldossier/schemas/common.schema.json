@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json",
+  "title": "EvalDossier common definitions 0.1",
+  "$defs": {
+    "protocolVersion": {
+      "const": "evaldossier/0.1"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{2,127}$"
+    },
+    "keyId": {
+      "description": "Unpadded base64url RFC 7638 thumbprint of an Ed25519 public JWK.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "decimalUnitInterval": {
+      "description": "A decimal string in [0,1]. Decimal strings avoid implementation-dependent JSON floating-point encodings in signed protocol objects.",
+      "type": "string",
+      "pattern": "^(?:0(?:\\.[0-9]{1,6})?|1(?:\\.0{1,6})?)$"
+    },
+    "digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "value"],
+      "properties": {
+        "algorithm": { "const": "sha-256" },
+        "value": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "publicJwk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kty", "crv", "x", "kid", "alg", "use"],
+      "properties": {
+        "kty": { "const": "OKP" },
+        "crv": { "const": "Ed25519" },
+        "x": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
+        "kid": { "$ref": "#/$defs/keyId" },
+        "alg": { "const": "EdDSA" },
+        "use": { "const": "sig" }
+      }
+    },
+    "embeddedSigner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "key"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "key": { "$ref": "#/$defs/publicJwk" }
+      }
+    },
+    "signatureContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audience", "nonce"],
+      "properties": {
+        "audience": { "type": "string", "minLength": 3, "maxLength": 256 },
+        "nonce": { "type": "string", "pattern": "^[A-Za-z0-9_-]{22,128}$" }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "jws"],
+      "properties": {
+        "type": { "const": "evaldossier.detached-jws/0.1" },
+        "jws": {
+          "description": "Detached compact JWS over the JCS-canonicalized protocol object after removing its proof member.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+\\.\\.[A-Za-z0-9_-]+$",
+          "maxLength": 1024
+        }
+      }
+    },
+    "profileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "digest"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$" },
+        "digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "artifactRole": {
+      "enum": [
+        "DELIVERABLE",
+        "SCHEMA",
+        "UPSTREAM_REQUEST",
+        "UPSTREAM_RESPONSE",
+        "CAPTURE_METADATA",
+        "REDACTION_MANIFEST",
+        "SUPPORTING_EVIDENCE",
+        "POLICY"
+      ]
+    },
+    "artifactCommitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactId", "role", "mediaType", "commitmentMode", "digest", "sizeBytes"],
+      "properties": {
+        "artifactId": { "$ref": "#/$defs/identifier" },
+        "role": { "$ref": "#/$defs/artifactRole" },
+        "mediaType": {
+          "type": "string",
+          "pattern": "^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$",
+          "maxLength": 127
+        },
+        "commitmentMode": {
+          "description": "v0.1 request artifacts are exact inputs, not expected output values.",
+          "const": "EXACT_INPUT"
+        },
+        "digest": { "$ref": "#/$defs/digest" },
+        "sizeBytes": { "type": "integer", "minimum": 1, "maximum": 5242880 }
+      }
+    },
+    "resultBasis": {
+      "enum": [
+        "FORMAL_PREDICATE",
+        "AUTHORITATIVE_OBSERVATION",
+        "CRYPTOGRAPHIC_PROOF",
+        "MODEL_JUDGMENT",
+        "HEURISTIC",
+        "SELF_ASSERTION"
+      ]
+    },
+    "assessment": {
+      "description": "What an evaluator or upstream system assessed; it is not itself a truth or settlement claim.",
+      "enum": ["AFFIRMED", "REJECTED", "INCONCLUSIVE"]
+    },
+    "predicateStatus": {
+      "description": "Whether the requested predicate has been established by an obligation-eligible basis.",
+      "enum": ["ESTABLISHED_TRUE", "ESTABLISHED_FALSE", "UNDETERMINED"]
+    },
+    "obligationVerdict": {
+      "description": "Protocol-level conclusion after applying the signed profile's aggregation and basis-eligibility policy.",
+      "enum": ["SATISFIED", "NOT_SATISFIED", "INCONCLUSIVE"]
+    }
+  }
+}

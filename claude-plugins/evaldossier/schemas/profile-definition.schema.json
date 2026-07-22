@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/profile-definition.schema.json",
+  "title": "EvalDossier profile definition 0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "schemaVersion",
+    "profileId",
+    "version",
+    "title",
+    "description",
+    "publishedAt",
+    "publisher",
+    "signingKeyId",
+    "operation",
+    "resultBindingMode",
+    "evaluationClass",
+    "allowedBases",
+    "predicates",
+    "aggregationPolicy",
+    "mappingPolicy",
+    "signatureContext",
+    "proof"
+  ],
+  "properties": {
+    "protocolVersion": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/protocolVersion" },
+    "schemaVersion": { "const": "evaldossier.profile-definition/0.1" },
+    "profileId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/identifier" },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "publishedAt": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/timestamp" },
+    "publisher": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/embeddedSigner" },
+    "signingKeyId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/keyId" },
+    "operation": { "enum": ["EVALUATE", "NORMALIZE"] },
+    "resultBindingMode": {
+      "description": "Whether the profile establishes predicates directly or preserves a typed upstream assessment without upgrading it to truth.",
+      "enum": ["DIRECT_PREDICATE_RESULT", "PRESERVE_UPSTREAM_ASSESSMENT"]
+    },
+    "evaluationClass": {
+      "enum": ["DETERMINISTIC", "UPSTREAM_NORMALIZATION", "EVIDENCE_RULES", "PROBABILISTIC"]
+    },
+    "allowedBases": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/resultBasis" }
+    },
+    "predicates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["predicateId", "description", "basis"],
+        "properties": {
+          "predicateId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/identifier" },
+          "description": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "basis": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/resultBasis" }
+        }
+      }
+    },
+    "aggregationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "unknownHandling", "obligationEligibleBases"],
+      "properties": {
+        "rule": { "enum": ["ALL_REQUIRED_TRUE", "PRESERVE_UPSTREAM_OVERALL"] },
+        "unknownHandling": { "const": "INCONCLUSIVE_WHEN_REQUIRED_PREDICATE_UNDETERMINED" },
+        "obligationEligibleBases": {
+          "description": "Only these bases may establish an obligation predicate. An empty list deliberately makes every obligation verdict inconclusive.",
+          "type": "array",
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/resultBasis" }
+        }
+      }
+    },
+    "mappingPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyId", "description"],
+      "properties": {
+        "policyId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/identifier" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "signatureContext": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/signatureContext" },
+    "proof": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/proof" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "operation": { "const": "NORMALIZE" } }, "required": ["operation"] },
+      "then": {
+        "properties": {
+          "resultBindingMode": { "const": "PRESERVE_UPSTREAM_ASSESSMENT" },
+          "evaluationClass": { "const": "UPSTREAM_NORMALIZATION" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "resultBindingMode": { "const": "PRESERVE_UPSTREAM_ASSESSMENT" } }, "required": ["resultBindingMode"] },
+      "then": { "properties": { "aggregationPolicy": { "properties": { "rule": { "const": "PRESERVE_UPSTREAM_OVERALL" } } } } }
+    },
+    {
+      "if": { "properties": { "resultBindingMode": { "const": "DIRECT_PREDICATE_RESULT" } }, "required": ["resultBindingMode"] },
+      "then": { "properties": { "operation": { "const": "EVALUATE" } } }
+    }
+  ]
+}

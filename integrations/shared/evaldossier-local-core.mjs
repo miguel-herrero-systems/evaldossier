@@ -1,15 +1,13 @@
 import { createHash } from "node:crypto";
-import { lstat, readFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { lstat, open, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  assertEvaluatorConformance,
-  buildReferenceEvaluation,
-  defineEvaluator,
-  verifyDossier,
-} from "../../dist/src/index.js";
-import { parseJsonFileStrict } from "../../dist/src/json.js";
+import { verifyDossier } from "../../dist/src/dossier.js";
+import { buildReferenceEvaluation } from "../../dist/src/reference-evaluator.js";
+import { assertEvaluatorConformance, defineEvaluator } from "../../dist/src/sdk.js";
+import { parseJsonStrict } from "../../dist/src/json.js";
 
 const PIN_SOURCES = Object.freeze({
   "user-request": "USER_REQUEST",
@@ -35,6 +33,8 @@ const REQUEST_KEYS = Object.freeze([
   "schemaVersion",
 ]);
 const REQUEST_SCHEMA_VERSION = "evaldossier.local-verification-request/0.1";
+const CONFORMANCE_REQUEST_KEYS = Object.freeze(["output", "schemaVersion"]);
+const CONFORMANCE_REQUEST_SCHEMA_VERSION = "evaldossier.local-conformance-request/0.1";
 const MAX_REQUEST_BYTES = 16 * 1024;
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
@@ -101,6 +101,21 @@ function normalizeVerificationRequest(value) {
   });
 }
 
+function normalizeConformanceRequest(value) {
+  assertExactKeys(
+    value,
+    CONFORMANCE_REQUEST_KEYS,
+    "conformance request",
+    "INVALID_CONFORMANCE_REQUEST",
+  );
+  if (value.schemaVersion !== CONFORMANCE_REQUEST_SCHEMA_VERSION) {
+    fail("INVALID_CONFORMANCE_REQUEST", "conformance request schemaVersion is unsupported");
+  }
+  return Object.freeze({
+    output: requestString(value.output, "output", 4096),
+  });
+}
+
 function normalizeIntegrationConfig(value) {
   assertExactKeys(value, CONFIG_KEYS, "integration config");
   const { hostName, hostSlug, integrationId } = value;
@@ -118,7 +133,7 @@ function normalizeIntegrationConfig(value) {
   }
   if (
     typeof integrationId !== "string" ||
-    !/^evaldossier-[a-z][a-z0-9-]*-local\/0\.1$/u.test(integrationId)
+    !/^evaldossier-[a-z][a-z0-9-]*-(?:local|plugin)\/0\.1$/u.test(integrationId)
   ) {
     fail("INVALID_INTEGRATION_CONFIG", "integrationId is invalid");
   }
@@ -277,37 +292,146 @@ async function verifyCommand(config, args) {
   });
 }
 
-async function readVerificationRequest(requestInput) {
+async function readStrictRequestFile(requestInput, label) {
   assertLocalPath(requestInput, "--request");
   const requestPath = resolve(requestInput);
+  let handle;
   try {
-    const metadata = await lstat(requestPath);
-    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.nlink !== 1) {
+    const beforeOpen = await lstat(requestPath);
+    if (!beforeOpen.isFile() || beforeOpen.isSymbolicLink() || beforeOpen.nlink !== 1) {
       fail(
-        "INVALID_VERIFICATION_REQUEST",
-        "verification request must be one regular, non-linked local file",
+        label.code,
+        `${label.name} must be one regular, non-linked local file`,
       );
     }
-    const parsed = await parseJsonFileStrict(requestPath, {
-      maxBytes: MAX_REQUEST_BYTES,
-      label: "structured verification request",
-    });
-    return normalizeVerificationRequest(parsed);
+    const noFollow = fsConstants.O_NOFOLLOW ?? 0;
+    handle = await open(requestPath, fsConstants.O_RDONLY | noFollow);
+    const opened = await handle.stat();
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      opened.dev !== beforeOpen.dev ||
+      opened.ino !== beforeOpen.ino
+    ) {
+      fail(label.code, `${label.name} changed while it was being opened`);
+    }
+    if (opened.size > MAX_REQUEST_BYTES) {
+      fail(label.code, `${label.name} exceeds the byte limit`);
+    }
+    const bytes = await handle.readFile();
+    if (bytes.byteLength > MAX_REQUEST_BYTES) {
+      fail(label.code, `${label.name} grew beyond the byte limit while being read`);
+    }
+    return parseJsonStrict(bytes, `structured ${label.name}`);
   } catch (error) {
     if (error instanceof IntegrationError) {
       throw error;
     }
     fail(
-      "INVALID_VERIFICATION_REQUEST",
-      "structured verification request is invalid",
+      label.code,
+      `structured ${label.name} is invalid`,
       failureDiagnostic(error),
     );
+  } finally {
+    await handle?.close();
+  }
+}
+
+async function readVerificationRequest(requestInput) {
+  const parsed = await readStrictRequestFile(requestInput, {
+    code: "INVALID_VERIFICATION_REQUEST",
+    name: "verification request",
+  });
+  return normalizeVerificationRequest(parsed);
+}
+
+async function readOneJsonLineFromStdin(errorCode, label) {
+  if (process.stdin.isTTY) {
+    fail(errorCode, `${label} requires structured non-interactive stdin`);
+  }
+  const bytes = await new Promise((resolveInput, rejectInput) => {
+    const chunks = [];
+    let totalBytes = 0;
+    let settled = false;
+
+    const cleanup = () => {
+      process.stdin.off("data", onData);
+      process.stdin.off("end", onEnd);
+      process.stdin.off("error", onError);
+      process.stdin.pause();
+    };
+    const settle = (callback, value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      callback(value);
+    };
+    const onError = (error) => settle(rejectInput, error);
+    const onEnd = () => settle(rejectInput, new Error(`${label} ended before newline`));
+    const onData = (chunk) => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalBytes += buffer.byteLength;
+      if (totalBytes > MAX_REQUEST_BYTES + 1) {
+        settle(rejectInput, new Error(`${label} exceeds the byte limit`));
+        return;
+      }
+      const newlineIndex = buffer.indexOf(0x0a);
+      if (newlineIndex === -1) {
+        chunks.push(buffer);
+        return;
+      }
+      if (newlineIndex !== buffer.byteLength - 1) {
+        settle(rejectInput, new Error(`${label} must contain exactly one JSON line`));
+        return;
+      }
+      chunks.push(buffer.subarray(0, newlineIndex));
+      const combined = Buffer.concat(chunks);
+      if (combined.byteLength === 0 || combined.byteLength > MAX_REQUEST_BYTES) {
+        settle(rejectInput, new Error(`${label} has an invalid byte length`));
+        return;
+      }
+      settle(resolveInput, combined);
+    };
+
+    process.stdin.on("data", onData);
+    process.stdin.on("end", onEnd);
+    process.stdin.on("error", onError);
+    process.stdin.resume();
+  }).catch((error) => {
+    fail(errorCode, `${label} is invalid`, failureDiagnostic(error));
+  });
+
+  try {
+    return parseJsonStrict(bytes, label);
+  } catch (error) {
+    fail(errorCode, `${label} is invalid`, failureDiagnostic(error));
   }
 }
 
 async function verifyRequestCommand(config, args) {
   const values = parseOptions(args, new Set(["--request"]), config.hostName);
   const request = await readVerificationRequest(required(values, "--request"));
+  return verifyInputs(config, {
+    expectedAudience: request.audience,
+    expectedDossierNonce: request.nonce,
+    audienceSource: request.audienceSource,
+    nonceSource: request.nonceSource,
+    dossierInput: request.dossier,
+  });
+}
+
+async function verifyStdinCommand(config, args) {
+  const values = parseOptions(args, new Set(), config.hostName);
+  if (values.size !== 0) {
+    fail("UNKNOWN_OPTION", "An unsupported option was supplied");
+  }
+  const parsed = await readOneJsonLineFromStdin(
+    "INVALID_VERIFICATION_REQUEST",
+    "structured verification request",
+  );
+  const request = normalizeVerificationRequest(parsed);
   return verifyInputs(config, {
     expectedAudience: request.audience,
     expectedDossierNonce: request.nonce,
@@ -386,9 +510,7 @@ function conformanceDossier(config) {
   };
 }
 
-async function conformanceCommand(config, args) {
-  const values = parseOptions(args, new Set(["--output"]), config.hostName);
-  const outputInput = required(values, "--output");
+async function runConformance(config, outputInput) {
   assertLocalPath(outputInput, "--output");
   const outputDirectory = resolve(outputInput);
 
@@ -442,6 +564,24 @@ async function conformanceCommand(config, args) {
   };
 }
 
+async function conformanceCommand(config, args) {
+  const values = parseOptions(args, new Set(["--output"]), config.hostName);
+  return runConformance(config, required(values, "--output"));
+}
+
+async function conformanceStdinCommand(config, args) {
+  const values = parseOptions(args, new Set(), config.hostName);
+  if (values.size !== 0) {
+    fail("UNKNOWN_OPTION", "An unsupported option was supplied");
+  }
+  const parsed = await readOneJsonLineFromStdin(
+    "INVALID_CONFORMANCE_REQUEST",
+    "structured conformance request",
+  );
+  const request = normalizeConformanceRequest(parsed);
+  return runConformance(config, request.output);
+}
+
 async function main(config, args) {
   const [operation, ...rest] = args;
   if (operation === "verify") {
@@ -450,10 +590,19 @@ async function main(config, args) {
   if (operation === "verify-request") {
     return verifyRequestCommand(config, rest);
   }
+  if (operation === "verify-stdin") {
+    return verifyStdinCommand(config, rest);
+  }
   if (operation === "conformance") {
     return conformanceCommand(config, rest);
   }
-  fail("UNKNOWN_OPERATION", "Operation must be verify, verify-request or conformance");
+  if (operation === "conformance-stdin") {
+    return conformanceStdinCommand(config, rest);
+  }
+  fail(
+    "UNKNOWN_OPERATION",
+    "Operation must be verify, verify-request, verify-stdin, conformance or conformance-stdin",
+  );
 }
 
 export async function runLocalIntegrationCli(configInput, args = process.argv.slice(2)) {
@@ -467,9 +616,10 @@ export async function runLocalIntegrationCli(configInput, args = process.argv.sl
       error instanceof IntegrationError
         ? error
         : new IntegrationError("INTEGRATION_FAILED", "Unexpected integration failure");
-    const operation = args[0] === "verify" || args[0] === "verify-request"
+    const operation =
+      args[0] === "verify" || args[0] === "verify-request" || args[0] === "verify-stdin"
       ? "verify"
-      : args[0] === "conformance"
+      : args[0] === "conformance" || args[0] === "conformance-stdin"
         ? "conformance"
         : "unknown";
     process.stdout.write(

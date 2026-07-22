@@ -69,7 +69,9 @@
     "demo": "npm run build && node dist/src/cli.js demo --out demo-output",
     "verify:demo": "npm run build && node dist/src/cli.js verify demo-output/formal --audience evaldossier.demo.consumer --nonce Zm9ybWFsLWRvc3NpZXItbm9uY2U && node dist/src/cli.js verify demo-output/model-judgment --audience evaldossier.demo.consumer --nonce synthetic-model-judgment-nonce-0001",
     "demo:sdk": "npm run build && node examples/sdk/reference-evaluator.mjs",
-    "pack:check": "npm run build && node scripts/check-package.mjs"
+    "pack:check": "npm run build && node scripts/check-package.mjs",
+    "plugins:build": "npm run build && node scripts/build-agent-plugins.mjs",
+    "plugins:check": "npm run build && node scripts/build-agent-plugins.mjs --check && node scripts/check-agent-plugins.mjs"
   },
   "dependencies": {
     "ajv": "^8.17.1",
@@ -79,6 +81,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "esbuild": "0.28.1",
     "typescript": "^5.8.3"
   }
 }

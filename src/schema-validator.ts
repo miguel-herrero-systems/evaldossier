@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
@@ -31,6 +32,21 @@ const SCHEMA_ID_BY_VERSION: Record<ProtocolSchemaVersion, string> = {
   "evaldossier.dossier/0.1": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/dossier.schema.json",
 };
 
+const RESOURCE_LIMITS = {
+  dossierArtifacts: 64,
+  assessedCriterionIds: 128,
+  unassessedCriterionIds: 128,
+  assessments: 128,
+  evidenceArtifactIds: 32,
+  acceptedClassifications: 2,
+  allowedBases: 6,
+  obligationEligibleBases: 6,
+} as const;
+
+const MAX_SCHEMA_DIAGNOSTIC_CHARS = 256;
+const MAX_SCHEMA_PARAM_ENTRIES = 16;
+const MAX_SCHEMA_PARAM_DEPTH = 4;
+
 export interface SchemaIssue {
   instancePath: string;
   schemaPath: string;
@@ -55,14 +71,215 @@ export class ProtocolSchemaError extends Error {
   }
 }
 
+function diagnosticDigest(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex").slice(0, 16);
+}
+
+function boundDiagnosticString(value: string): string {
+  if (value.length <= MAX_SCHEMA_DIAGNOSTIC_CHARS) {
+    return value;
+  }
+  const suffix = `...[sha256:${diagnosticDigest(value)};chars:${value.length}]`;
+  return `${value.slice(0, MAX_SCHEMA_DIAGNOSTIC_CHARS - suffix.length)}${suffix}`;
+}
+
+function sanitizeDiagnosticValue(value: unknown, depth = 0): unknown {
+  if (typeof value === "string") {
+    return boundDiagnosticString(value);
+  }
+  if (value === null || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : String(value);
+  }
+  if (depth >= MAX_SCHEMA_PARAM_DEPTH) {
+    return "[diagnostic value depth omitted]";
+  }
+  if (Array.isArray(value)) {
+    const bounded = value
+      .slice(0, MAX_SCHEMA_PARAM_ENTRIES)
+      .map((entry) => sanitizeDiagnosticValue(entry, depth + 1));
+    if (value.length > MAX_SCHEMA_PARAM_ENTRIES) {
+      bounded.push(`[${value.length - MAX_SCHEMA_PARAM_ENTRIES} entries omitted]`);
+    }
+    return bounded;
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    const bounded: Record<string, unknown> = {};
+    for (const [key, entry] of entries.slice(0, MAX_SCHEMA_PARAM_ENTRIES)) {
+      bounded[boundDiagnosticString(key)] = sanitizeDiagnosticValue(entry, depth + 1);
+    }
+    if (entries.length > MAX_SCHEMA_PARAM_ENTRIES) {
+      bounded.__omittedEntries = entries.length - MAX_SCHEMA_PARAM_ENTRIES;
+    }
+    return bounded;
+  }
+  return `[${typeof value} omitted]`;
+}
+
+function sanitizeDiagnosticParams(params: Record<string, unknown>): Record<string, unknown> {
+  return sanitizeDiagnosticValue(params) as Record<string, unknown>;
+}
+
 function issue(error: ErrorObject): SchemaIssue {
   return {
-    instancePath: error.instancePath,
-    schemaPath: error.schemaPath,
-    keyword: error.keyword,
-    message: error.message ?? "schema validation failed",
-    params: error.params,
+    instancePath: boundDiagnosticString(error.instancePath),
+    schemaPath: boundDiagnosticString(error.schemaPath),
+    keyword: boundDiagnosticString(error.keyword),
+    message: boundDiagnosticString(error.message ?? "schema validation failed"),
+    params: sanitizeDiagnosticParams(error.params),
   };
+}
+
+function objectValue(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function arrayValue(value: unknown): unknown[] | undefined {
+  return Array.isArray(value) ? value : undefined;
+}
+
+function maxItemsIssue(
+  instancePath: string,
+  schemaPath: string,
+  limit: number,
+): SchemaIssue {
+  return {
+    instancePath,
+    schemaPath,
+    keyword: "maxItems",
+    message: `must NOT have more than ${limit} items`,
+    params: { limit },
+  };
+}
+
+function pushMaxItemsIssue(
+  issues: SchemaIssue[],
+  value: unknown,
+  instancePath: string,
+  schemaPath: string,
+  limit: number,
+): void {
+  const entries = arrayValue(value);
+  if (entries !== undefined && entries.length > limit) {
+    issues.push(maxItemsIssue(instancePath, schemaPath, limit));
+  }
+}
+
+/**
+ * Reject protocol-wide and implicit operational limits before semantic
+ * validation. Ajv is configured to fail on its first schema error; this pass
+ * additionally enforces cross-object/domain limits that protocol 0.1 leaves
+ * implicit without mutating its immutable published schemas.
+ */
+function resourceAdmissionIssues(
+  value: unknown,
+  schemaVersion: ProtocolSchemaVersion,
+): SchemaIssue[] {
+  const root = objectValue(value);
+  if (root === undefined) {
+    return [];
+  }
+
+  const issues: SchemaIssue[] = [];
+  switch (schemaVersion) {
+    case "evaldossier.dossier/0.1":
+      pushMaxItemsIssue(
+        issues,
+        root.artifacts,
+        "/artifacts",
+        "#/properties/artifacts/maxItems",
+        RESOURCE_LIMITS.dossierArtifacts,
+      );
+      break;
+
+    case "evaldossier.evaluation-attestation/0.1": {
+      const coverage = objectValue(root.coverage);
+      if (coverage !== undefined) {
+        pushMaxItemsIssue(
+          issues,
+          coverage.assessedCriterionIds,
+          "/coverage/assessedCriterionIds",
+          "#/properties/coverage/properties/assessedCriterionIds/maxItems",
+          RESOURCE_LIMITS.assessedCriterionIds,
+        );
+        pushMaxItemsIssue(
+          issues,
+          coverage.unassessedCriterionIds,
+          "/coverage/unassessedCriterionIds",
+          "#/properties/coverage/properties/unassessedCriterionIds/maxItems",
+          RESOURCE_LIMITS.unassessedCriterionIds,
+        );
+      }
+
+      const assessments = arrayValue(root.assessments);
+      pushMaxItemsIssue(
+        issues,
+        assessments,
+        "/assessments",
+        "#/properties/assessments/maxItems",
+        RESOURCE_LIMITS.assessments,
+      );
+      if (assessments !== undefined && assessments.length <= RESOURCE_LIMITS.assessments) {
+        for (let index = 0; index < assessments.length; index += 1) {
+          const assessment = objectValue(assessments[index]);
+          if (assessment !== undefined) {
+            pushMaxItemsIssue(
+              issues,
+              assessment.evidenceArtifactIds,
+              `/assessments/${index}/evidenceArtifactIds`,
+              "#/x-evaldossier-operational-limits/evidenceArtifactIds/maxItems",
+              RESOURCE_LIMITS.evidenceArtifactIds,
+            );
+          }
+        }
+      }
+      break;
+    }
+
+    case "evaldossier.evaluator-manifest/0.1": {
+      const dataPractices = objectValue(root.dataPractices);
+      if (dataPractices !== undefined) {
+        pushMaxItemsIssue(
+          issues,
+          dataPractices.acceptedClassifications,
+          "/dataPractices/acceptedClassifications",
+          "#/x-evaldossier-operational-limits/acceptedClassifications/maxItems",
+          RESOURCE_LIMITS.acceptedClassifications,
+        );
+      }
+      break;
+    }
+
+    case "evaldossier.profile-definition/0.1": {
+      pushMaxItemsIssue(
+        issues,
+        root.allowedBases,
+        "/allowedBases",
+        "#/x-evaldossier-operational-limits/allowedBases/maxItems",
+        RESOURCE_LIMITS.allowedBases,
+      );
+      const aggregationPolicy = objectValue(root.aggregationPolicy);
+      if (aggregationPolicy !== undefined) {
+        pushMaxItemsIssue(
+          issues,
+          aggregationPolicy.obligationEligibleBases,
+          "/aggregationPolicy/obligationEligibleBases",
+          "#/properties/aggregationPolicy/properties/obligationEligibleBases/maxItems",
+          RESOURCE_LIMITS.obligationEligibleBases,
+        );
+      }
+      break;
+    }
+
+    default:
+      break;
+  }
+  return issues;
 }
 
 function protocolSchemaVersion(value: unknown): string | undefined {
@@ -120,30 +337,32 @@ export class ProtocolSchemaValidator {
       };
     }
     if (expectedSchemaVersion !== undefined && declaredVersion !== expectedSchemaVersion) {
+      const diagnosticVersion = boundDiagnosticString(declaredVersion);
       return {
         valid: false,
-        schemaVersion: declaredVersion,
+        schemaVersion: diagnosticVersion,
         errors: [
           {
             instancePath: "/schemaVersion",
             schemaPath: "",
             keyword: "const",
-            message: `expected ${expectedSchemaVersion}, received ${declaredVersion}`,
+            message: `expected ${expectedSchemaVersion}, received ${diagnosticVersion}`,
             params: { allowedValue: expectedSchemaVersion },
           },
         ],
       };
     }
     if (!isProtocolSchemaVersion(declaredVersion)) {
+      const diagnosticVersion = boundDiagnosticString(declaredVersion);
       return {
         valid: false,
-        schemaVersion: declaredVersion,
+        schemaVersion: diagnosticVersion,
         errors: [
           {
             instancePath: "/schemaVersion",
             schemaPath: "",
             keyword: "enum",
-            message: `unsupported protocol schema version ${declaredVersion}`,
+            message: `unsupported protocol schema version ${diagnosticVersion}`,
             params: { allowedValues: [...PROTOCOL_SCHEMA_VERSIONS] },
           },
         ],
@@ -153,6 +372,14 @@ export class ProtocolSchemaValidator {
     const validator = this.#validators.get(declaredVersion);
     if (validator === undefined) {
       throw new ProtocolSchemaError(`schema validator was not compiled for ${declaredVersion}`);
+    }
+    const admissionIssues = resourceAdmissionIssues(value, declaredVersion);
+    if (admissionIssues.length > 0) {
+      return {
+        valid: false,
+        schemaVersion: declaredVersion,
+        errors: admissionIssues,
+      };
     }
     const valid = validator(value) as boolean;
     return {
@@ -181,7 +408,7 @@ export async function createSchemaValidator(
 ): Promise<ProtocolSchemaValidator> {
   const directory = resolve(schemaDirectory);
   const ajv = new Ajv2020({
-    allErrors: true,
+    allErrors: false,
     allowUnionTypes: true,
     coerceTypes: false,
     removeAdditional: false,

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "hrevn-evaldossier",
+  "owner": {
+    "name": "Miguel Herrero",
+    "email": "contact@hrevn.com"
+  },
+  "description": "Auditable tools for portable AI-agent evaluation evidence.",
+  "plugins": [
+    {
+      "name": "evaldossier",
+      "source": "./claude-plugins/evaldossier",
+      "category": "development",
+      "tags": [
+        "ai-agents",
+        "evaluation",
+        "attestations",
+        "security"
+      ]
+    }
+  ]
+}
