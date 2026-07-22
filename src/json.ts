@@ -1,9 +1,8 @@
+import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import {
   parseTree,
-  printParseErrorCode,
   type Node as JsonSyntaxNode,
-  type ParseError,
 } from "jsonc-parser";
 
 import type { JsonValue } from "./types.js";
@@ -11,16 +10,56 @@ import type { JsonValue } from "./types.js";
 export const DEFAULT_MAX_JSON_BYTES = 5 * 1024 * 1024;
 export const DEFAULT_MAX_JSON_DEPTH = 128;
 
+const MAX_DIAGNOSTIC_LABEL_CHARS = 160;
+const MAX_DIAGNOSTIC_BODY_CHARS = 768;
+const MAX_DIAGNOSTIC_PATH_CHARS = 512;
+const MAX_DIAGNOSTIC_KEY_CHARS = 96;
+
+function diagnosticDigest(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex").slice(0, 16);
+}
+
+function boundDiagnosticText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value;
+  }
+  const suffix = `...[sha256:${diagnosticDigest(value)};chars:${value.length}]`;
+  return `${value.slice(0, Math.max(0, maxChars - suffix.length))}${suffix}`;
+}
+
+function diagnosticObjectSegment(key: string): string {
+  if (key.length <= MAX_DIAGNOSTIC_KEY_CHARS) {
+    // JSON quoting keeps control characters inert in logs and terminal output.
+    return `[${JSON.stringify(key)}]`;
+  }
+  return `[key-sha256:${diagnosticDigest(key)};chars:${key.length}]`;
+}
+
+function appendDiagnosticPath(path: string, segment: string): string {
+  return boundDiagnosticText(`${path}${segment}`, MAX_DIAGNOSTIC_PATH_CHARS);
+}
+
+function diagnosticKey(key: string): string {
+  return key.length <= MAX_DIAGNOSTIC_KEY_CHARS
+    ? JSON.stringify(key)
+    : `<sha256:${diagnosticDigest(key)};chars:${key.length}>`;
+}
+
 export class StrictJsonError extends Error {
   readonly code: string;
   readonly sourceLabel: string;
   readonly offset: number | undefined;
 
   constructor(code: string, message: string, sourceLabel = "JSON input", offset?: number) {
-    super(`${sourceLabel}: ${message}`);
+    super(
+      `${boundDiagnosticText(sourceLabel, MAX_DIAGNOSTIC_LABEL_CHARS)}: ${boundDiagnosticText(
+        message,
+        MAX_DIAGNOSTIC_BODY_CHARS,
+      )}`,
+    );
     this.name = "StrictJsonError";
     this.code = code;
-    this.sourceLabel = sourceLabel;
+    this.sourceLabel = boundDiagnosticText(sourceLabel, MAX_DIAGNOSTIC_LABEL_CHARS);
     this.offset = offset;
   }
 }
@@ -41,9 +80,16 @@ function decodeUtf8Strict(input: Uint8Array, sourceLabel: string): string {
 }
 
 function locationSuffix(text: string, offset: number): string {
-  const before = text.slice(0, Math.max(0, offset));
-  const lines = before.split("\n");
-  return ` at line ${lines.length}, column ${(lines.at(-1)?.length ?? 0) + 1}`;
+  const boundedOffset = Math.min(text.length, Math.max(0, offset));
+  let line = 1;
+  let lastLineBreak = -1;
+  for (let index = 0; index < boundedOffset; index += 1) {
+    if (text.charCodeAt(index) === 0x0a) {
+      line += 1;
+      lastLineBreak = index;
+    }
+  }
+  return ` at line ${line}, column ${boundedOffset - lastLineBreak}`;
 }
 
 function assertNoDuplicateKeys(
@@ -81,26 +127,34 @@ function assertNoDuplicateKeys(
       if (firstOffset !== undefined) {
         throw new StrictJsonError(
           "DUPLICATE_KEY",
-          `duplicate key ${JSON.stringify(key)} at ${path}${locationSuffix(text, keyNode.offset)}; first occurrence at offset ${firstOffset}`,
+          `duplicate key ${diagnosticKey(key)} at ${path}${locationSuffix(text, keyNode.offset)}; first occurrence at offset ${firstOffset}`,
           sourceLabel,
           keyNode.offset,
         );
       }
       seen.set(key, keyNode.offset);
-      assertNoDuplicateKeys(valueNode, text, sourceLabel, `${path}/${escapeJsonPointer(key)}`, depth + 1);
+      assertNoDuplicateKeys(
+        valueNode,
+        text,
+        sourceLabel,
+        appendDiagnosticPath(path, diagnosticObjectSegment(key)),
+        depth + 1,
+      );
     }
     return;
   }
 
   if (node.type === "array") {
     for (const [index, child] of (node.children ?? []).entries()) {
-      assertNoDuplicateKeys(child, text, sourceLabel, `${path}/${index}`, depth + 1);
+      assertNoDuplicateKeys(
+        child,
+        text,
+        sourceLabel,
+        appendDiagnosticPath(path, `[${index}]`),
+        depth + 1,
+      );
     }
   }
-}
-
-function escapeJsonPointer(segment: string): string {
-  return segment.replaceAll("~", "~0").replaceAll("/", "~1");
 }
 
 function assertUnicodeScalarString(value: string, sourceLabel: string, path: string): void {
@@ -128,6 +182,13 @@ function assertUnicodeScalarString(value: string, sourceLabel: string, path: str
 
 function assertUnicodeScalars(value: JsonValue, sourceLabel: string, path = "$"): void {
   if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new StrictJsonError(
+        "NON_FINITE_NUMBER",
+        `non-finite number is not accepted at ${path}`,
+        sourceLabel,
+      );
+    }
     if (Object.is(value, -0)) {
       throw new StrictJsonError("NEGATIVE_ZERO", `negative zero is not accepted at ${path}`, sourceLabel);
     }
@@ -146,22 +207,20 @@ function assertUnicodeScalars(value: JsonValue, sourceLabel: string, path = "$")
   }
   if (Array.isArray(value)) {
     for (const [index, item] of value.entries()) {
-      assertUnicodeScalars(item, sourceLabel, `${path}/${index}`);
+      assertUnicodeScalars(item, sourceLabel, appendDiagnosticPath(path, `[${index}]`));
     }
     return;
   }
   if (value !== null && typeof value === "object") {
     for (const [key, item] of Object.entries(value)) {
       assertUnicodeScalarString(key, sourceLabel, `${path}/<key>`);
-      assertUnicodeScalars(item, sourceLabel, `${path}/${escapeJsonPointer(key)}`);
+      assertUnicodeScalars(
+        item,
+        sourceLabel,
+        appendDiagnosticPath(path, diagnosticObjectSegment(key)),
+      );
     }
   }
-}
-
-function describeParseErrors(errors: ParseError[], text: string): string {
-  return errors
-    .map((error) => `${printParseErrorCode(error.error)}${locationSuffix(text, error.offset)}`)
-    .join(", ");
 }
 
 /**
@@ -177,33 +236,34 @@ export function parseJsonStrict<T extends JsonValue = JsonValue>(
     throw new StrictJsonError("UNEXPECTED_BOM", "a UTF-8 BOM is not accepted", sourceLabel, 0);
   }
 
-  const errors: ParseError[] = [];
-  const root = parseTree(text, errors, {
+  // Use the native parser as a fail-fast syntax admission gate. In particular,
+  // do not ask jsonc-parser to recover from and collect every error in an
+  // attacker-controlled document: dense malformed input can otherwise create
+  // work and diagnostics proportional to the number of recoverable errors.
+  // The engine diagnostic is deliberately not reflected across this boundary.
+  let value: JsonValue;
+  try {
+    value = JSON.parse(text) as JsonValue;
+  } catch {
+    throw new StrictJsonError("INVALID_JSON", "invalid JSON document", sourceLabel);
+  }
+
+  // JSON.parse has already established strict JSON syntax (and rejects comments
+  // and trailing commas). Build a syntax tree only for invariants that the
+  // native parser does not expose, chiefly duplicate object member detection.
+  // No attacker-controlled malformed document reaches this stage, and no
+  // parser recovery diagnostics are exposed or rendered by this boundary.
+  const root = parseTree(text, undefined, {
     allowEmptyContent: false,
     allowTrailingComma: false,
     disallowComments: true,
   });
-  if (root === undefined || errors.length > 0) {
-    throw new StrictJsonError(
-      "INVALID_JSON",
-      errors.length > 0 ? describeParseErrors(errors, text) : "empty or invalid JSON document",
-      sourceLabel,
-      errors[0]?.offset,
-    );
+  if (root === undefined) {
+    // Defensive disagreement guard. Keep the diagnostic fixed and bounded.
+    throw new StrictJsonError("INVALID_JSON", "invalid JSON document", sourceLabel);
   }
 
   assertNoDuplicateKeys(root, text, sourceLabel, "$", 0);
-
-  let value: JsonValue;
-  try {
-    value = JSON.parse(text) as JsonValue;
-  } catch (error) {
-    throw new StrictJsonError(
-      "INVALID_JSON",
-      error instanceof Error ? error.message : "JSON.parse failed",
-      sourceLabel,
-    );
-  }
   assertUnicodeScalars(value, sourceLabel);
   return value as T;
 }

@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/evidence-bundle.schema.json",
+  "title": "EvalDossier evidence bundle 0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "schemaVersion",
+    "bundleId",
+    "requestId",
+    "capturedAt",
+    "collector",
+    "signingKeyId",
+    "captureMode",
+    "artifacts",
+    "limitations",
+    "signatureContext",
+    "proof"
+  ],
+  "properties": {
+    "protocolVersion": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/protocolVersion" },
+    "schemaVersion": { "const": "evaldossier.evidence-bundle/0.1" },
+    "bundleId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/identifier" },
+    "requestId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/identifier" },
+    "capturedAt": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/timestamp" },
+    "collector": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/embeddedSigner" },
+    "signingKeyId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/keyId" },
+    "captureMode": { "enum": ["GENERATED_SYNTHETIC", "CAPTURED_OFFLINE_SANITIZED"] },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifactId",
+          "role",
+          "mediaType",
+          "digest",
+          "sizeBytes",
+          "path",
+          "source"
+        ],
+        "properties": {
+          "artifactId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/identifier" },
+          "role": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/artifactRole" },
+          "mediaType": {
+            "type": "string",
+            "pattern": "^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$",
+            "maxLength": 127
+          },
+          "digest": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/digest" },
+          "sizeBytes": { "type": "integer", "minimum": 1, "maximum": 5242880 },
+          "path": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200,
+            "allOf": [
+              { "pattern": "^evidence/[A-Za-z0-9._/-]+$" },
+              { "not": { "pattern": "(?:^|/)\\.\\.(?:/|$)" } },
+              { "not": { "pattern": "(?:^|/)\\.(?:/|$)" } },
+              { "not": { "pattern": "\\\\" } },
+              { "not": { "pattern": "//" } }
+            ]
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "systemId",
+              "role",
+              "controllerRelationship",
+              "observationMode",
+              "originAuthentication",
+              "derivation",
+              "authorityStatus"
+            ],
+            "properties": {
+              "systemId": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/identifier" },
+              "role": {
+                "enum": ["REQUESTER", "UPSTREAM_EVALUATOR", "REFERENCE_FIXTURE", "AUTHORITATIVE_SYSTEM", "UNKNOWN"]
+              },
+              "controllerRelationship": {
+                "enum": ["SAME_AS_REQUESTER", "SAME_AS_EVALUATOR", "THIRD_PARTY_DECLARED", "INTERNAL_FIXTURE", "UNESTABLISHED"]
+              },
+              "observationMode": {
+                "enum": ["DIRECT", "CAPTURED_OFFLINE", "SELF_ASSERTED", "SYNTHETIC"]
+              },
+              "originAuthentication": {
+                "description": "How the bytes' claimed origin is authenticated. RECORDER_ATTESTED authenticates only the recorder's capture statement, not the upstream system.",
+                "enum": ["SOURCE_SIGNED", "RECORDER_ATTESTED", "SELF_ASSERTED", "SYNTHETIC", "UNESTABLISHED"]
+              },
+              "derivation": {
+                "description": "Whether the committed bytes are original, a declared redacted derivative, or generated test material.",
+                "enum": ["ORIGINAL_BYTES", "REDACTED_DERIVATIVE", "GENERATED"]
+              },
+              "reportedOriginalDigest": {
+                "description": "Recorder-reported digest of original bytes when the committed artifact is a derivative; this is not source authentication.",
+                "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/digest"
+              },
+              "authorityStatus": {
+                "enum": ["FORMALLY_DEFINED", "AUTHORITATIVE_DECLARED", "NON_AUTHORITATIVE", "UNESTABLISHED"]
+              }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "derivation": { "const": "REDACTED_DERIVATIVE" } }, "required": ["derivation"] },
+                "then": { "required": ["reportedOriginalDigest"] }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+    },
+    "signatureContext": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/signatureContext" },
+    "proof": { "$ref": "https://raw.githubusercontent.com/miguel-herrero-systems/evaldossier/v0.1.0/schemas/common.schema.json#/$defs/proof" }
+  }
+}

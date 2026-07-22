@@ -1,0 +1,11 @@
+{
+  "reportId": "report-2026-001",
+  "subject": "agent-payment-evidence",
+  "findings": [
+    {
+      "id": "finding-001",
+      "status": "confirmed",
+      "summary": "The committed JSON deliverable conforms to its versioned schema."
+    }
+  ]
+}

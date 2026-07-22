@@ -32,7 +32,25 @@ function pathIsWithin(root: string, candidate: string): boolean {
   return fromRoot !== "" && fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`) && !isAbsolute(fromRoot);
 }
 
-function validateRelativeDossierPath(relativePath: string, maxPathBytes: number): string[] {
+function isReservedWindowsDeviceSegment(segment: string): boolean {
+  const [withoutStream = ""] = segment.split(":", 1);
+  const [withoutExtension = ""] = withoutStream.split(".", 1);
+  const baseName = withoutExtension.replace(/[ .]+$/u, "");
+  return /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[0-9¹²³]|LPT[0-9¹²³])$/iu.test(
+    baseName,
+  );
+}
+
+/**
+ * Validate the portable lexical form shared by dossier readers and writers.
+ * This deliberately rejects names that Win32 aliases or interprets as devices,
+ * even when the current host filesystem would accept them literally.
+ */
+export function validateDossierRelativePath(
+  relativePath: string,
+  maxPathBytes = DEFAULT_MAX_DOSSIER_PATH_BYTES,
+): string[] {
+  assertPositiveLimit(maxPathBytes, "maxPathBytes");
   if (typeof relativePath !== "string" || relativePath.length === 0) {
     throw new UnsafeDossierPathError("EMPTY_PATH", "dossier path must be a non-empty string");
   }
@@ -51,18 +69,30 @@ function validateRelativeDossierPath(relativePath: string, maxPathBytes: number)
   if (isAbsolute(relativePath) || win32.isAbsolute(relativePath)) {
     throw new UnsafeDossierPathError("ABSOLUTE_PATH", "absolute dossier paths are forbidden");
   }
-  if (!/^[A-Za-z0-9._/-]+$/.test(relativePath)) {
-    throw new UnsafeDossierPathError(
-      "UNSAFE_CHARACTER",
-      "dossier path contains a character outside [A-Za-z0-9._/-]",
-    );
-  }
 
   const segments = relativePath.split("/");
   if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
     throw new UnsafeDossierPathError(
       "UNSAFE_SEGMENT",
       "empty, current-directory and parent-directory path segments are forbidden",
+    );
+  }
+  if (segments.some(isReservedWindowsDeviceSegment)) {
+    throw new UnsafeDossierPathError(
+      "RESERVED_WINDOWS_DEVICE",
+      "dossier path contains a reserved Windows device name",
+    );
+  }
+  if (segments.some((segment) => /[ .]$/u.test(segment))) {
+    throw new UnsafeDossierPathError(
+      "WINDOWS_NORMALIZED_SEGMENT",
+      "dossier path segments must not end with a dot or space",
+    );
+  }
+  if (!/^[A-Za-z0-9._/-]+$/.test(relativePath)) {
+    throw new UnsafeDossierPathError(
+      "UNSAFE_CHARACTER",
+      "dossier path contains a character outside [A-Za-z0-9._/-]",
     );
   }
   return segments;
@@ -82,7 +112,7 @@ export async function resolveSafeDossierPath(
   const requireRegularFile = options.requireRegularFile ?? true;
   assertPositiveLimit(maxBytes, "maxBytes");
   assertPositiveLimit(maxPathBytes, "maxPathBytes");
-  const segments = validateRelativeDossierPath(relativePath, maxPathBytes);
+  const segments = validateDossierRelativePath(relativePath, maxPathBytes);
 
   const lexicalRoot = resolve(dossierRoot);
   const rootMetadata = await lstat(lexicalRoot);

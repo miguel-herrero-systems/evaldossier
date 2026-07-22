@@ -1,6 +1,7 @@
 node_modules/
 dist/
 demo-output/
+.evaldossier-local/
 coverage/
 .DS_Store
 *.log

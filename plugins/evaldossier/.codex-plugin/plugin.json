@@ -1,0 +1,35 @@
+{
+  "name": "evaldossier",
+  "version": "0.2.0",
+  "description": "Offline verification and fixed synthetic conformance for portable signed EvalDossier dossiers.",
+  "author": {
+    "name": "Miguel Herrero",
+    "email": "contact@hrevn.com",
+    "url": "https://hrevn.com"
+  },
+  "skills": "./skills/",
+  "homepage": "https://github.com/miguel-herrero-systems/evaldossier",
+  "repository": "https://github.com/miguel-herrero-systems/evaldossier",
+  "license": "MIT",
+  "keywords": [
+    "ai-agents",
+    "evaluation",
+    "attestations",
+    "offline-verification"
+  ],
+  "interface": {
+    "displayName": "EvalDossier",
+    "shortDescription": "Verify signed dossiers offline",
+    "longDescription": "Verify portable signed evaluation dossiers against caller-supplied expected audience and nonce pins, or exercise the fixed synthetic reference evaluator. The plugin performs no settlement or network requests.",
+    "developerName": "Miguel Herrero Systems",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Offline dossier verification",
+      "Synthetic evaluator conformance"
+    ],
+    "websiteURL": "https://github.com/miguel-herrero-systems/evaldossier",
+    "defaultPrompt": [
+      "Use $evaldossier:verify to verify this dossier offline using the audience and nonce I provide."
+    ]
+  }
+}

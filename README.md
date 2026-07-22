@@ -4,7 +4,7 @@
 
 **Offline-verifiable evaluation attestations and portable dossiers for heterogeneous AI-agent evaluators.**
 
-> Status: SDK `v0.2.0` · protocol `evaldossier/0.1` · offline-first · settlement-independent
+> Status: SDK `v0.2.0` · protocol `evaldossier/0.1` · Codex/Claude plugins `v0.1.0` · offline-first · settlement-independent
 
 EvalDossier is a settlement-independent TypeScript SDK and reference implementation for packaging evaluator outputs, evidence, and signatures into dossiers that another system can verify offline. It is designed for AI-agent and agent-commerce workflows that must distinguish formal proof from model judgment or self-assertion before applying any economic policy.
 
@@ -93,13 +93,36 @@ The SDK also provides `createSignedProtocolObject`, exact-byte and protocol-obje
 
 See the [SDK guide](./docs/SDK.md) and the executable [reference integration](./examples/sdk/reference-evaluator.mjs).
 
-## Local Codex Skill
+## Standalone agent plugins
 
-The repository includes a reviewable [local Codex Skill](./integrations/codex/evaldossier/SKILL.md) and one [closed wrapper script](./integrations/codex/evaldossier/scripts/evaldossier-local.mjs). It verifies existing dossiers with externally supplied audience and nonce values or runs the fixed synthetic reference evaluator through SDK conformance. It does not capture Codex sessions, load arbitrary evaluator code, initiate network requests, handle production keys, or authorize economic action.
+EvalDossier packages the same closed verification semantics as two independent, installable plugins:
 
-The Skill requires the expected audience and nonce before dossier inspection and records their declared source as `USER_REQUEST` or `UPSTREAM_CONTEXT`. Every successful verification retains `CALLER_DECLARED_NOT_VERIFIED`: matching pins do not prove how the caller obtained them. Missing pins produce `INPUT_REQUIRED` rather than being inferred from the dossier. Its wrapper rejects URL, UNC/network-root, prefixed Windows device-namespace, and reserved Win32 device-alias paths before filesystem access. This is a lexical boundary, not proof that a drive, mount, or ancestor reparse point has local backing. Model-facing output exposes typed verification fields while committing free-form dossier text, local paths, and downstream error details by SHA-256 instead of reflecting attacker-controlled strings into Codex.
+- [Codex plugin](./plugins/evaldossier/) with `$evaldossier:verify`;
+- [Claude Code plugin](./claude-plugins/evaldossier/) with `/evaldossier:verify`.
 
-The Skill source is not installed automatically and is not included in the npm package. Installation and plugin packaging remain separate supply-chain decisions. See the [integration specification](./docs/CODEX_INTEGRATION_SPEC.md) for its command contract, AgentProof boundary, security envelope, and acceptance criteria.
+Both contain a byte-identical generated runtime, all seven committed schemas, only the five public synthetic conformance fixtures they need, exact dependency licenses, and a digest manifest. They work when copied outside this repository and do not require `dist/`, `node_modules`, npm installation, a server, or network access at runtime. Host-specific launchers configure identity only; neither can change pin policy, non-claims, path rejection, semantic projection, conformance behavior, or the economic boundary.
+
+Both plugins require an expected audience and nonce before dossier inspection and retain `CALLER_DECLARED_NOT_VERIFIED`: matching pins do not prove how the caller obtained them. They reject URL, UNC/network-root, prefixed Windows device-namespace, and reserved Win32 device-alias paths before dossier access. This is a lexical boundary, not proof that a drive, mount, or ancestor reparse point has local backing. Agent-facing output exposes typed fields while committing free-form dossier text, local paths, and downstream errors by SHA-256 rather than reflecting attacker-controlled strings.
+
+Codex transports one strict JSON line through structured non-TTY stdin while the shell command stays fixed. Claude Code writes one exact JSON request through its structured Write tool and invokes a fixed plugin-root command. Its fixed request slot does not support concurrent invocations in one workspace. Strict request parsing rejects duplicate or unknown fields, malformed or oversized JSON, linked files, unsupported versions, and invalid sources before dossier access. Tests assert equivalent verification semantics across both hosts except for the integration identifier.
+
+Build and exercise both standalone payloads:
+
+```bash
+npm run plugins:check
+```
+
+Install from this repository after the plugin files are merged into the repository's default branch:
+
+```text
+codex plugin marketplace add miguel-herrero-systems/evaldossier
+codex plugin add evaldossier@hrevn-evaldossier
+
+claude plugin marketplace add miguel-herrero-systems/evaldossier
+claude plugin install evaldossier@hrevn-evaldossier
+```
+
+The generated bundle records one narrow runtime-code-generation caveat: Ajv compiles only committed schemas. EvalDossier executes no caller-supplied code and performs no evaluator discovery, but it does not claim that the current bundle contains no runtime-generated validator code. See the [Codex specification](./docs/CODEX_INTEGRATION_SPEC.md), [Claude Code specification](./docs/CLAUDE_CODE_INTEGRATION_SPEC.md), and each plugin's `runtime/BUNDLE_MANIFEST.json`.
 
 ## What `verify` verifies
 
@@ -193,7 +216,7 @@ See [SECURITY.md](./SECURITY.md) and [THREAT_MODEL.md](./THREAT_MODEL.md).
 
 ## Future work
 
-The local Codex Skill may later become an installable Codex plugin after separate packaging and supply-chain review. AgentProof remains the observed-session receipt layer; EvalDossier remains the typed evaluation layer. External evaluator adapters will be added only against documented, compatible systems. Production signing requires a separately reviewed external-signer interface. The [control plane, public API, marketplace and settlement integrations](./docs/FUTURE_CONTROL_PLANE.md) remain explicitly deferred and require separate security and demand evidence.
+The next host target is an OpenClaw compatibility test against the same standalone runtime, not a third verification implementation. Submission to the public Codex/OpenAI and Claude community directories remains a separate release decision after clean-cache installation testing and final security review. AgentProof remains the observed-session receipt layer; EvalDossier remains the typed evaluation layer. External evaluator adapters will be added only against documented, compatible systems. Production signing requires a separately reviewed external-signer interface. The [control plane, public API, evaluator marketplace and settlement integrations](./docs/FUTURE_CONTROL_PLANE.md) remain explicitly deferred and require separate security and demand evidence.
 
 ## Open empirical questions
 

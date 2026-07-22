@@ -1,0 +1,189 @@
+{
+  "schemaVersion": "evaldossier.agent-plugin-bundle/0.1",
+  "productVersion": "0.2.0",
+  "protocolVersion": "0.1",
+  "nodeTarget": ">=20.11",
+  "buildTool": {
+    "name": "esbuild",
+    "version": "0.28.1"
+  },
+  "runtimeCodeGeneration": {
+    "callerSuppliedCode": false,
+    "evaluatorDiscovery": false,
+    "committedSchemaCompilation": "AJV_RUNTIME_CODE_GENERATION"
+  },
+  "externalImports": [
+    "node:crypto",
+    "node:fs",
+    "node:fs/promises",
+    "node:path",
+    "node:url"
+  ],
+  "bundledDependencies": [
+    {
+      "name": "ajv",
+      "version": "8.20.0",
+      "license": "MIT",
+      "licenseFile": "runtime/third-party-licenses/ajv.txt"
+    },
+    {
+      "name": "ajv-formats",
+      "version": "3.0.1",
+      "license": "MIT",
+      "licenseFile": "runtime/third-party-licenses/ajv-formats.txt"
+    },
+    {
+      "name": "fast-deep-equal",
+      "version": "3.1.3",
+      "license": "MIT",
+      "licenseFile": "runtime/third-party-licenses/fast-deep-equal.txt"
+    },
+    {
+      "name": "fast-uri",
+      "version": "3.1.4",
+      "license": "BSD-3-Clause",
+      "licenseFile": "runtime/third-party-licenses/fast-uri.txt"
+    },
+    {
+      "name": "json-canonicalize",
+      "version": "2.0.0",
+      "license": "MIT",
+      "licenseFile": "runtime/third-party-licenses/json-canonicalize.txt"
+    },
+    {
+      "name": "json-schema-traverse",
+      "version": "1.0.0",
+      "license": "MIT",
+      "licenseFile": "runtime/third-party-licenses/json-schema-traverse.txt"
+    },
+    {
+      "name": "jsonc-parser",
+      "version": "3.3.1",
+      "license": "MIT",
+      "licenseFile": "runtime/third-party-licenses/jsonc-parser.txt"
+    },
+    {
+      "name": "require-from-string",
+      "version": "2.0.2",
+      "license": "MIT",
+      "licenseFile": "runtime/third-party-licenses/require-from-string.txt"
+    }
+  ],
+  "assets": [
+    {
+      "path": "fixtures/keys/exporter.private.jwk.json",
+      "bytes": 237,
+      "sha256": "c3489f235c4707f1cb8ed21a2c7c070a38a683e63048feb8f27379be4a1744ac"
+    },
+    {
+      "path": "fixtures/keys/reference-evaluator.private.jwk.json",
+      "bytes": 237,
+      "sha256": "ea3bc4174875a81db23cf807e836a6ffe2dcb0513ed415b313d415841d20c912"
+    },
+    {
+      "path": "fixtures/keys/requester.private.jwk.json",
+      "bytes": 237,
+      "sha256": "060cbe594ccab8a064646cf32d0645dd8ff9cb4c886a12ecb008fe85cba2f0d1"
+    },
+    {
+      "path": "fixtures/reference/deliverable.json",
+      "bytes": 248,
+      "sha256": "f911b962ff89233ef3dd9e908ab1be39d9615016835995f71b97d20fe9714baa"
+    },
+    {
+      "path": "fixtures/reference/deliverable.schema.json",
+      "bytes": 787,
+      "sha256": "11a39e270ae164b77ae6c7054baae2b0592921be17a3c3449281b36e1aa3111f"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1071,
+      "sha256": "22a39c93a3d297591e357ca79719d41ccb5b006dc48c16823c284d755416ed93"
+    },
+    {
+      "path": "runtime/shared/evaldossier-local-core.mjs",
+      "bytes": 470728,
+      "sha256": "956796d52c2f22d1a5efa2f9d07a332c4a82b4d5cbdf49f7c5d0da52d86c55f4"
+    },
+    {
+      "path": "runtime/THIRD_PARTY_NOTICES.md",
+      "bytes": 650,
+      "sha256": "eb0bb1309c5ec74d6522a45095a54d446db3e19ca6731b897df0cfcdb592487a"
+    },
+    {
+      "path": "runtime/third-party-licenses/ajv-formats.txt",
+      "bytes": 1074,
+      "sha256": "9df3bb69929a3b650ed73b3bfa1756725aaff0ac296461605753547004eafeaf"
+    },
+    {
+      "path": "runtime/third-party-licenses/ajv.txt",
+      "bytes": 1089,
+      "sha256": "9b6a90e9be78799534e4030d71b6817271fb99aa10e261f9f9f6dec1cff4177a"
+    },
+    {
+      "path": "runtime/third-party-licenses/fast-deep-equal.txt",
+      "bytes": 1074,
+      "sha256": "7bf9b2de73a6b356761c948d0e9eeb4be6c1270bd04c79cd489c1e400ffdfc1a"
+    },
+    {
+      "path": "runtime/third-party-licenses/fast-uri.txt",
+      "bytes": 1814,
+      "sha256": "df7464922225c9b286167fa692d305e5ba98bf71613525d4d031649a344a3f3f"
+    },
+    {
+      "path": "runtime/third-party-licenses/json-canonicalize.txt",
+      "bytes": 1092,
+      "sha256": "975bb5a2743ef419a6b3493186c1d05551db8bf8a1935c7c02a7d8b04b4f5dbe"
+    },
+    {
+      "path": "runtime/third-party-licenses/json-schema-traverse.txt",
+      "bytes": 1074,
+      "sha256": "7bf9b2de73a6b356761c948d0e9eeb4be6c1270bd04c79cd489c1e400ffdfc1a"
+    },
+    {
+      "path": "runtime/third-party-licenses/jsonc-parser.txt",
+      "bytes": 1071,
+      "sha256": "d0e26984080b12c7830983ef4de2ec522e1aa94047f2753347953b278e9c66e0"
+    },
+    {
+      "path": "runtime/third-party-licenses/require-from-string.txt",
+      "bytes": 1128,
+      "sha256": "6ee0feb1f6ef996ff5a68600f8cf98909cf412d39ef3cdceaefd87d636fa1b7f"
+    },
+    {
+      "path": "schemas/common.schema.json",
+      "bytes": 4927,
+      "sha256": "37387483e94414d67244821de8434e0f0913d27779620bdb5587f7ff3130a04f"
+    },
+    {
+      "path": "schemas/dossier.schema.json",
+      "bytes": 7243,
+      "sha256": "9bbc5a1c783e018c93377a93d0c4a61a45a357517882e2175061dc7cd06cee6f"
+    },
+    {
+      "path": "schemas/evaluation-attestation.schema.json",
+      "bytes": 11542,
+      "sha256": "f94e2bf6b935e67731638447f8c791a1c1e2529951c37c4a41b45cac41c9cabd"
+    },
+    {
+      "path": "schemas/evaluation-request.schema.json",
+      "bytes": 4673,
+      "sha256": "774307736039d06da6666dafd0588cccf18f453f46526012466e12fc0d1a21e8"
+    },
+    {
+      "path": "schemas/evaluator-manifest.schema.json",
+      "bytes": 3876,
+      "sha256": "b0b126799544d3633502ffdd7422818743dd91005af56e3dd7c628caa4b7c864"
+    },
+    {
+      "path": "schemas/evidence-bundle.schema.json",
+      "bytes": 6071,
+      "sha256": "53095c2053ae426fcb982217cf0a3e67ece4f1f897d07aecd4fb0c362f66079b"
+    },
+    {
+      "path": "schemas/profile-definition.schema.json",
+      "bytes": 5476,
+      "sha256": "4f2a85e126958c8219b687d173b3887ce97b32d99af391b85aea1e9b9187dd21"
+    }
+  ]
+}

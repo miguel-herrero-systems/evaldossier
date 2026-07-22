@@ -19,6 +19,12 @@ const scriptPath = join(
   "scripts",
   "evaldossier-local.mjs",
 );
+const sharedCorePath = join(
+  projectRoot,
+  "integrations",
+  "shared",
+  "evaldossier-local-core.mjs",
+);
 const formalDossier = join(projectRoot, "examples", "formal");
 const modelJudgmentDossier = join(projectRoot, "examples", "model-judgment");
 
@@ -32,6 +38,8 @@ interface IntegrationOutput {
   integration: string;
   operation: string;
   status: "PASS" | "FAIL";
+  verificationStatus: "VERIFIED" | "NOT_VERIFIED";
+  projectionVersion: string;
   dossierLocation?: {
     kind: string;
     pathSha256: string;
@@ -48,6 +56,25 @@ interface IntegrationOutput {
     overallBasis: string;
     predicateStatuses: string[];
     obligationVerdict: string;
+    protocolOutcome: {
+      overallAssessment: string;
+      reasonCodeSha256: string;
+      rawReasonCodeEmitted: boolean;
+      obligationVerdict: string;
+    };
+    criterionResults: Array<{
+      criterionIndex: number;
+      criterionIdSha256: string;
+      predicateIdSha256: string;
+      rawIdentifiersEmitted: boolean;
+      required: boolean;
+      basis: string;
+      assessment: string;
+      predicateStatus: string;
+      reasonCodeSha256: string;
+      rawReasonCodeEmitted: boolean;
+      evidenceArtifactCount: number;
+    }>;
     economicAction: string;
     untrustedText: {
       dossierIdSha256: string;
@@ -113,6 +140,33 @@ function formalVerifyArgs(dossier = formalDossier): string[] {
   ];
 }
 
+function verificationRequest(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    schemaVersion: "evaldossier.local-verification-request/0.1",
+    dossier: formalDossier,
+    audience: "evaldossier.demo.consumer",
+    nonce: "Zm9ybWFsLWRvc3NpZXItbm9uY2U",
+    audienceSource: "user-request",
+    nonceSource: "upstream-context",
+    ...overrides,
+  };
+}
+
+async function runRequestFile(
+  requestPath: string,
+  operation: "verify-request" | "conformance-request",
+  request: Record<string, unknown>,
+): Promise<ProcessResult> {
+  await writeFile(requestPath, `${JSON.stringify(request)}\n`, {
+    encoding: "utf8",
+    flag: "wx",
+    mode: 0o600,
+  });
+  return runIntegration([operation, "--request", requestPath, "--json"]);
+}
+
 test("the Codex wrapper verifies only with pinned caller-declared context", async () => {
   const result = await runIntegration(formalVerifyArgs());
   const output = outputOf(result);
@@ -122,6 +176,8 @@ test("the Codex wrapper verifies only with pinned caller-declared context", asyn
   assert.equal(output.integration, "evaldossier-codex-local/0.1");
   assert.equal(output.operation, "verify");
   assert.equal(output.status, "PASS");
+  assert.equal(output.verificationStatus, "VERIFIED");
+  assert.equal(output.projectionVersion, "evaldossier.model-safe-projection/0.2");
   assert.deepEqual(output.pinProvenance, {
     audience: "USER_REQUEST",
     nonce: "UPSTREAM_CONTEXT",
@@ -129,6 +185,43 @@ test("the Codex wrapper verifies only with pinned caller-declared context", asyn
   });
   assert.equal(output.summary?.audienceBinding, "PINNED");
   assert.equal(output.summary?.dossierNonceBinding, "PINNED");
+  assert.equal(output.summary?.protocolOutcome.overallAssessment, "AFFIRMED");
+  assert.equal(output.summary?.protocolOutcome.obligationVerdict, "SATISFIED");
+  assert.match(output.summary?.protocolOutcome.reasonCodeSha256 ?? "", /^[a-f0-9]{64}$/u);
+  assert.equal(output.summary?.protocolOutcome.rawReasonCodeEmitted, false);
+  assert.equal(output.summary?.criterionResults.length, 3);
+  const expectedCriteria = [
+    ["criterion-artifact-present", "artifact-present", "ARTIFACT_PRESENT"],
+    ["criterion-artifact-digest", "artifact-digest-matches", "ARTIFACT_DIGEST_MATCHES"],
+    ["criterion-json-schema", "local-json-schema-valid", "LOCAL_JSON_SCHEMA_VALID"],
+  ] as const;
+  for (const [index, [criterionId, predicateId, reasonCode]] of expectedCriteria.entries()) {
+    const projectedCriterion:
+      | NonNullable<IntegrationOutput["summary"]>["criterionResults"][number]
+      | undefined = output.summary?.criterionResults[index];
+    assert.equal(projectedCriterion?.criterionIndex, index);
+    assert.equal(projectedCriterion?.criterionIdSha256, sha256Text(criterionId));
+    assert.equal(projectedCriterion?.predicateIdSha256, sha256Text(predicateId));
+    assert.equal(projectedCriterion?.reasonCodeSha256, sha256Text(reasonCode));
+    assert.equal(projectedCriterion?.required, true);
+    assert.equal(projectedCriterion?.basis, "FORMAL_PREDICATE");
+    assert.equal(projectedCriterion?.assessment, "AFFIRMED");
+    assert.equal(projectedCriterion?.predicateStatus, "ESTABLISHED_TRUE");
+    assert.equal(result.stdout.includes(criterionId), false);
+    assert.equal(result.stdout.includes(predicateId), false);
+    assert.equal(result.stdout.includes(reasonCode), false);
+  }
+  assert.equal(result.stdout.includes("ALL_REQUIRED_FORMAL_PREDICATES_TRUE"), false);
+  assert.ok(
+    output.summary?.criterionResults.every(
+      (criterion) =>
+        criterion.rawIdentifiersEmitted === false &&
+        criterion.rawReasonCodeEmitted === false &&
+        /^[a-f0-9]{64}$/u.test(criterion.criterionIdSha256) &&
+        /^[a-f0-9]{64}$/u.test(criterion.predicateIdSha256) &&
+        /^[a-f0-9]{64}$/u.test(criterion.reasonCodeSha256),
+    ),
+  );
   assert.equal(output.summary?.economicAction, "OUT_OF_SCOPE");
   assert.equal(output.dossierLocation?.kind, "LOCAL_PATH");
   assert.equal(output.dossierLocation?.pathSha256, sha256Text(formalDossier));
@@ -181,8 +274,47 @@ test("a wrong expected audience or nonce fails closed", async () => {
     const output = outputOf(result);
 
     assert.equal(result.code, 1);
+    assert.equal(output.status, "FAIL");
+    assert.equal(output.verificationStatus, "NOT_VERIFIED");
+    assert.equal(output.projectionVersion, "evaldossier.model-safe-projection/0.2");
+    assert.equal(output.summary, undefined);
     assert.equal(output.error?.code, "VERIFICATION_FAILED");
   }
+});
+
+test("Codex request-file verification works without live stdin and equals direct argv", async (t) => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "evaldossier-codex-request-"));
+  t.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const requestPath = join(temporaryRoot, "request.json");
+  const [requestResult, directResult] = await Promise.all([
+    runRequestFile(requestPath, "verify-request", verificationRequest()),
+    runIntegration(formalVerifyArgs()),
+  ]);
+
+  assert.equal(requestResult.code, 0);
+  assert.equal(requestResult.stderr, "");
+  assert.deepEqual(outputOf(requestResult), outputOf(directResult));
+  assert.equal(requestResult.stdout.includes(requestPath), false);
+  assert.equal(requestResult.stdout.includes(formalDossier), false);
+});
+
+test("Codex request-file verification fails closed on a wrong caller pin", async (t) => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "evaldossier-codex-wrong-pin-"));
+  t.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const wrongNonce = "wrong-nonce-value-0000000001";
+  const result = await runRequestFile(
+    join(temporaryRoot, "request.json"),
+    "verify-request",
+    verificationRequest({ nonce: wrongNonce }),
+  );
+  const output = outputOf(result);
+
+  assert.equal(result.code, 1);
+  assert.equal(output.status, "FAIL");
+  assert.equal(output.verificationStatus, "NOT_VERIFIED");
+  assert.equal(output.error?.code, "VERIFICATION_FAILED");
+  assert.equal(output.summary, undefined);
+  assert.equal(result.stdout.includes(wrongNonce), false);
 });
 
 test("tampered dossier evidence fails closed through the Codex wrapper", async () => {
@@ -362,8 +494,8 @@ test("unknown option names are not reflected into model-facing errors", async ()
   assert.equal(result.stderr.includes(untrustedOption), false);
 });
 
-test("the Codex-owned wrapper contains no network or child-process surface", async () => {
-  const source = await readFile(scriptPath, "utf8");
+test("the Codex launcher and shared core contain no network or child-process surface", async () => {
+  const source = `${await readFile(scriptPath, "utf8")}\n${await readFile(sharedCorePath, "utf8")}`;
   assert.doesNotMatch(source, /node:(?:http|https|net|tls|dgram|dns|child_process)/);
   assert.doesNotMatch(source, /\bfetch\s*\(/);
   assert.doesNotMatch(source, /\b(?:exec|spawn|fork)\s*\(/);
@@ -398,4 +530,24 @@ test("conformance uses the fixed synthetic evaluator and refuses output reuse", 
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
+});
+
+test("Codex request-file conformance works without live stdin", async (t) => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "evaldossier-codex-conformance-request-"));
+  t.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const outputDirectory = join(temporaryRoot, "dossier");
+  const result = await runRequestFile(
+    join(temporaryRoot, "request.json"),
+    "conformance-request",
+    {
+      schemaVersion: "evaldossier.local-conformance-request/0.1",
+      output: outputDirectory,
+    },
+  );
+  const output = outputOf(result);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(output.status, "PASS");
+  assert.equal(output.verificationStatus, "VERIFIED");
+  assert.equal(output.summary?.obligationVerdict, "SATISFIED");
 });
