@@ -4,7 +4,7 @@
 
 **Offline-verifiable evaluation attestations and portable dossiers for heterogeneous AI-agent evaluators.**
 
-> Status: SDK `v0.2.0` · protocol `evaldossier/0.1` · Codex/Claude plugins `v0.1.0` · offline-first · settlement-independent
+> Status: SDK `v0.2.1` · protocol `evaldossier/0.1` · Codex/Claude plugins `v0.2.1` · offline-first · settlement-independent
 
 EvalDossier is a settlement-independent TypeScript SDK and reference implementation for packaging evaluator outputs, evidence, and signatures into dossiers that another system can verify offline. It is designed for AI-agent and agent-commerce workflows that must distinguish formal proof from model judgment or self-assertion before applying any economic policy.
 
@@ -100,11 +100,13 @@ EvalDossier packages the same closed verification semantics as two independent, 
 - [Codex plugin](./plugins/evaldossier/) with `$evaldossier:verify`;
 - [Claude Code plugin](./claude-plugins/evaldossier/) with `/evaldossier:verify`.
 
-Both contain a byte-identical generated runtime, all seven committed schemas, only the five public synthetic conformance fixtures they need, exact dependency licenses, and a digest manifest. They work when copied outside this repository and do not require `dist/`, `node_modules`, npm installation, a server, or network access at runtime. Host-specific launchers configure identity only; neither can change pin policy, non-claims, path rejection, semantic projection, conformance behavior, or the economic boundary.
+Both contain a byte-identical generated runtime, all seven committed schemas, two public synthetic reference inputs, exact dependency licenses, and a digest manifest. They work when copied outside this repository and do not require `dist/`, `node_modules`, npm installation, a server, or network access at runtime. Host-specific launchers configure identity only; neither can change pin policy, non-claims, path rejection, semantic projection, conformance behavior, or the economic boundary.
+
+The standalone conformance path generates fresh Ed25519 role keys in memory for each invocation and never writes or packages their private components. Its typed result and eleven declared checks are stable, while the generated dossier bytes, public keys, signatures and digests intentionally differ between live executions. The generated plugin payload itself remains reproducible byte for byte.
 
 Both plugins require an expected audience and nonce before dossier inspection and retain `CALLER_DECLARED_NOT_VERIFIED`: matching pins do not prove how the caller obtained them. They reject URL, UNC/network-root, prefixed Windows device-namespace, and reserved Win32 device-alias paths before dossier access. This is a lexical boundary, not proof that a drive, mount, or ancestor reparse point has local backing. Agent-facing output exposes typed fields while committing free-form dossier text, local paths, and downstream errors by SHA-256 rather than reflecting attacker-controlled strings.
 
-Codex transports one strict JSON line through structured non-TTY stdin while the shell command stays fixed. Claude Code writes one exact JSON request through its structured Write tool and invokes a fixed plugin-root command. Its fixed request slot does not support concurrent invocations in one workspace. Strict request parsing rejects duplicate or unknown fields, malformed or oversized JSON, linked files, unsupported versions, and invalid sources before dossier access. Tests assert equivalent verification semantics across both hosts except for the integration identifier.
+Codex transports one strict JSON request through a unique private request file created with structured tooling while the shell command stays fixed. Claude Code writes one exact JSON request through its structured Write tool and invokes a fixed plugin-root command. Its fixed request slot does not support concurrent invocations in one workspace. Strict request parsing rejects duplicate or unknown fields, malformed or oversized JSON, linked files, unsupported versions, and invalid sources before dossier access. Tests assert equivalent verification semantics across both hosts except for the integration identifier.
 
 Build and exercise both standalone payloads:
 
@@ -206,11 +208,11 @@ The v0.2 tree is shaped as an importable Node.js package with explicit root, SDK
 
 The package policy is a guard against common accidental inclusions and entrypoint drift. It is not a content-level secret scanner or a supply-chain security guarantee.
 
-The repository and package fixtures contain intentionally public deterministic test keys so the demos remain reproducible. They are not production credentials.
+The repository and unpublished package fixtures contain intentionally public deterministic test keys so the source demos remain reproducible. They are not production credentials. Standalone agent-plugin payloads contain no private fixture keys; their synthetic conformance roles use ephemeral in-memory keys.
 
 ## Security
 
-The keys under `fixtures/keys/` are public test fixtures whose private components are intentionally committed for deterministic demos. They must never be used outside this repository.
+The keys under the source repository's `fixtures/keys/` are public test fixtures whose private components are intentionally committed for deterministic source demos. They must never be reused as identities or production credentials and are excluded from every standalone agent-plugin payload. CI independently rejects private-key filenames, PEM private keys and private JWK members in those payloads.
 
 See [SECURITY.md](./SECURITY.md) and [THREAT_MODEL.md](./THREAT_MODEL.md).
 

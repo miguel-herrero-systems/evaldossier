@@ -344,7 +344,7 @@ test("the Claude plugin declares a manual, non-preapproved, fixed-command Skill"
 
   assert.equal(manifest.name, "evaldossier");
   assert.equal(manifest.license, "MIT");
-  assert.equal(manifest.version, "0.2.0");
+  assert.equal(manifest.version, "0.2.1");
   assert.match(skill, /^---\n[\s\S]*disable-model-invocation: true\n/u);
   assert.match(skill, /disallowed-tools:/u);
   assert.doesNotMatch(skill, /^allowed-tools:/mu);

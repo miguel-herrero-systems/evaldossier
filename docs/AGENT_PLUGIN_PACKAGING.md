@@ -37,7 +37,7 @@ install mode. It:
 2. bundles the shared local runtime as readable Node ESM for Node `>=20.11`;
 3. includes only Node built-ins as external imports;
 4. copies all seven committed protocol schemas;
-5. copies only three intentionally public deterministic test keys and two reference-evaluator fixture files;
+5. copies only two public reference-evaluator input files and no private signing-key material;
 6. includes the complete license text for every bundled runtime dependency, with only newline and trailing-whitespace normalization;
 7. writes `runtime/BUNDLE_MANIFEST.json` with dependency versions and SHA-256/size commitments for every generated asset;
 8. performs two independent clean payload builds and requires byte equality;
@@ -78,6 +78,7 @@ mutating either plugin root, and then:
 - requires the Codex reviewer fixture and manifest to match the canonical model-judgment example byte for byte;
 - rejects symbolic links, hard links and unsupported filesystem entries;
 - verifies every manifest digest;
+- independently rejects private-key filenames, PEM private keys and private JWK members while allowing public verification JWKs;
 - scans text assets for local home paths and internal strategy/probe names;
 - copies both plugins to unrelated paths containing spaces, quotes and shell syntax;
 - runs with hostile `NODE_PATH`, no project `node_modules`, and no runtime installation;
@@ -92,13 +93,18 @@ The Codex and Claude official manifest validators are also run before release. C
 
 ## Versioning
 
-- EvalDossier package/runtime source: `0.2.0`.
+- EvalDossier package/runtime source: `0.2.1`.
 - Protocol: `0.1`.
-- Codex plugin: `0.2.0`.
-- Claude Code plugin: `0.2.0`.
+- Model-safe projection: `0.2`.
+- Codex plugin: `0.2.1`.
+- Claude Code plugin: `0.2.1`.
 
 Any change to the common generated payload requires rebuilding and bumping both plugin versions before publication. A host-only manifest or Skill change may bump only that host plugin, but the common-payload equality gate must still pass.
 
-## Public test keys
+## Ephemeral conformance keys
 
-The bundled files named `*.private.jwk.json` are intentionally public deterministic test fixtures required only by the synthetic conformance path. Their private components are compromised by definition. They establish no institutional identity and must never be used for production signing.
+Standalone plugins package no private signing-key material. Each synthetic conformance invocation generates separate evaluator, requester and exporter Ed25519 keys in memory. Only public key components enter the generated dossier; private components are neither persisted nor returned.
+
+Consequently, the plugin payload remains reproducible byte for byte, but two live conformance dossiers intentionally do not: their public keys, signatures and dependent digests differ. Tests compare declared checks and typed semantics rather than output dossier bytes.
+
+`scripts/check-agent-plugin-secrets.mjs` is invoked directly by CI, outside the payload builder. It rejects `*.private.*`-style filenames, private-key PEM blocks and any JSON Web Key object containing a private `d` member. Public JWKs without `d` remain allowed for verification fixtures.

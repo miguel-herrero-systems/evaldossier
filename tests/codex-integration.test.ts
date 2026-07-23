@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,6 +25,7 @@ const sharedCorePath = join(
   "shared",
   "evaldossier-local-core.mjs",
 );
+const secretGuardPath = join(projectRoot, "scripts", "check-agent-plugin-secrets.mjs");
 const formalDossier = join(projectRoot, "examples", "formal");
 const modelJudgmentDossier = join(projectRoot, "examples", "model-judgment");
 
@@ -501,9 +502,10 @@ test("the Codex launcher and shared core contain no network or child-process sur
   assert.doesNotMatch(source, /\b(?:exec|spawn|fork)\s*\(/);
 });
 
-test("conformance uses the fixed synthetic evaluator and refuses output reuse", async () => {
+test("conformance uses fresh in-memory keys, preserves semantics and refuses output reuse", async () => {
   const temporaryRoot = await mkdtemp(join(tmpdir(), "evaldossier-codex-conformance-"));
   const outputDirectory = join(temporaryRoot, "dossier");
+  const freshOutputDirectory = join(temporaryRoot, "fresh-dossier");
   try {
     const args = ["conformance", "--output", outputDirectory, "--json"];
     const first = await runIntegration(args);
@@ -520,13 +522,54 @@ test("conformance uses the fixed synthetic evaluator and refuses output reuse", 
     assert.equal(firstOutput.dossierLocation?.rawPathEmitted, false);
     assert.equal(first.stdout.includes(outputDirectory), false);
 
-    const second = await runIntegration(args);
-    const secondOutput = outputOf(second);
-    assert.equal(second.code, 1);
-    assert.equal(secondOutput.error?.code, "CONFORMANCE_FAILED");
-    assert.equal(second.stdout.includes(outputDirectory), false);
-    assert.equal(second.stderr.includes(outputDirectory), false);
-    assert.equal(secondOutput.error?.diagnostic?.rawDetailEmitted, false);
+    const fresh = await runIntegration([
+      "conformance",
+      "--output",
+      freshOutputDirectory,
+      "--json",
+    ]);
+    const freshOutput = outputOf(fresh);
+    assert.equal(fresh.code, 0, fresh.stderr);
+    assert.deepEqual(freshOutput.checks, firstOutput.checks);
+    assert.equal(freshOutput.summary?.overallBasis, firstOutput.summary?.overallBasis);
+    assert.equal(
+      freshOutput.summary?.obligationVerdict,
+      firstOutput.summary?.obligationVerdict,
+    );
+    const firstDossierText = await readFile(join(outputDirectory, "dossier.json"), "utf8");
+    const freshDossierText = await readFile(
+      join(freshOutputDirectory, "dossier.json"),
+      "utf8",
+    );
+    const firstDossier = JSON.parse(firstDossierText) as {
+      exporter: { key: { x: string; d?: string } };
+      proof: { jws: string };
+    };
+    const freshDossier = JSON.parse(freshDossierText) as {
+      exporter: { key: { x: string; d?: string } };
+      proof: { jws: string };
+    };
+    assert.notEqual(firstDossierText, freshDossierText);
+    assert.notEqual(firstDossier.exporter.key.x, freshDossier.exporter.key.x);
+    assert.notEqual(firstDossier.proof.jws, freshDossier.proof.jws);
+    assert.equal(firstDossier.exporter.key.d, undefined);
+    assert.equal(freshDossier.exporter.key.d, undefined);
+    for (const generatedDossier of [outputDirectory, freshOutputDirectory]) {
+      const persistedMaterialCheck = spawnSync(
+        process.execPath,
+        [secretGuardPath, generatedDossier],
+        { cwd: projectRoot, encoding: "utf8" },
+      );
+      assert.equal(persistedMaterialCheck.status, 0, persistedMaterialCheck.stderr);
+    }
+
+    const reused = await runIntegration(args);
+    const reusedOutput = outputOf(reused);
+    assert.equal(reused.code, 1);
+    assert.equal(reusedOutput.error?.code, "CONFORMANCE_FAILED");
+    assert.equal(reused.stdout.includes(outputDirectory), false);
+    assert.equal(reused.stderr.includes(outputDirectory), false);
+    assert.equal(reusedOutput.error?.diagnostic?.rawDetailEmitted, false);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }

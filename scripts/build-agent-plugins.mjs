@@ -36,9 +36,6 @@ const schemaNames = Object.freeze([
   "profile-definition.schema.json",
 ]);
 const fixtureFiles = Object.freeze([
-  "fixtures/keys/exporter.private.jwk.json",
-  "fixtures/keys/reference-evaluator.private.jwk.json",
-  "fixtures/keys/requester.private.jwk.json",
   "fixtures/reference/deliverable.json",
   "fixtures/reference/deliverable.schema.json",
 ]);

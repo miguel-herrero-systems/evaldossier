@@ -1,8 +1,8 @@
-# EvalDossier SDK 0.2.0
+# EvalDossier SDK 0.2.1
 
 The SDK is a small, local orchestration layer over the EvalDossier protocol 0.1 core. It lets an evaluator author produce a conforming signed run, assemble it into a portable dossier, verify that dossier offline, and assert the declared semantic result without changing the verifier.
 
-Package version `0.2.0` does **not** introduce a new wire protocol. Every object remains `evaldossier/0.1` and uses the schemas published with [tag `v0.1.0`](https://github.com/miguel-herrero-systems/evaldossier/tree/v0.1.0/schemas).
+Package version `0.2.1` does **not** introduce a new wire protocol. Every object remains `evaldossier/0.1` and uses the schemas published with [tag `v0.1.0`](https://github.com/miguel-herrero-systems/evaldossier/tree/v0.1.0/schemas).
 
 ## Design boundary
 

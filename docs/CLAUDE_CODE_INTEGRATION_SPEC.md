@@ -1,6 +1,6 @@
 # Claude Code integration specification
 
-Status: standalone plugin `0.2.0` implemented and locally validated; repository and public-directory publication remain separate release decisions.
+Status: standalone plugin `0.2.1` implemented and locally validated; repository and public-directory publication remain separate release decisions.
 
 ## Decision
 
@@ -22,7 +22,7 @@ claude-plugins/evaldossier/
 ├── .claude-plugin/plugin.json
 ├── LICENSE
 ├── README.md
-├── fixtures/                       # five public synthetic fixtures only
+├── fixtures/                       # two public reference inputs; no private keys
 ├── runtime/
 │   ├── BUNDLE_MANIFEST.json
 │   ├── THIRD_PARTY_NOTICES.md
@@ -84,7 +84,7 @@ Projection `evaldossier.model-safe-projection/0.2` separates operation `status` 
 
 Invoke `/evaldossier:verify`. The Skill sets `disable-model-invocation: true`, defines no `allowed-tools`, and blocks common dossier-reading, network, editing, delegation and nested-Skill tools for the invocation turn. Those restrictions are host-enforced behavioral controls, not cryptographic proof about the surrounding Claude Code process.
 
-The plugin adds no hooks, MCP, network client, child process, secrets, wallet or economic action. Its bundled Ajv dependency generates validator functions only from committed protocol and synthetic-reference schemas. It does not execute caller-supplied code or discover evaluator modules, but it does not claim an absolute absence of runtime code generation.
+The plugin adds no hooks, MCP, network client, child process, packaged private key, wallet or economic action. Synthetic conformance generates fresh Ed25519 role keys in memory and persists only public components in its output dossier. Its bundled Ajv dependency generates validator functions only from committed protocol and synthetic-reference schemas. It does not execute caller-supplied code or discover evaluator modules, but it does not claim an absolute absence of runtime code generation.
 
 ## Validation and installation
 
@@ -99,7 +99,7 @@ claude plugin marketplace add miguel-herrero-systems/evaldossier
 claude plugin install evaldossier@hrevn-evaldossier
 ```
 
-The implemented checks copy the plugin to a hostile unrelated path, run without repository `dist/` or `node_modules`, compare its verification semantics with Codex, exercise formal and model-judgment dossiers, reject wrong pins and linked request files, run conformance, scan the exact file tree and verify every generated digest.
+The implemented checks independently reject private key material in CI, copy the plugin to a hostile unrelated path, run without repository `dist/` or `node_modules`, compare its verification semantics with Codex, exercise formal and model-judgment dossiers, reject wrong pins and linked request files, run conformance with fresh in-memory keys, scan the exact file tree and verify every generated digest. Live conformance dossier bytes differ by design; declared semantics remain equivalent.
 
 ## Acceptance criteria
 
@@ -111,5 +111,5 @@ The implemented checks copy the plugin to a hostile unrelated path, run without 
 6. Hostile signed free-form text is represented only by typed fields, counts and SHA-256 commitments.
 7. Codex and Claude produce equivalent verification semantics except for host identity.
 8. Model judgment remains inconclusive and economic action remains out of scope.
-9. The generated payload contains no local paths, internal strategy documents, external evaluator probes, hooks, MCP or secrets other than explicitly public synthetic test keys.
+9. The generated payload contains no local paths, internal strategy documents, external evaluator probes, hooks, MCP or private signing-key material; public verification JWKs remain allowed.
 10. Public marketplace submission remains gated on a final clean-cache install and release review.

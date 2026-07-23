@@ -1,6 +1,6 @@
 {
   "name": "evaldossier",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Offline verification and fixed synthetic conformance for portable signed EvalDossier dossiers.",
   "author": {
     "name": "Miguel Herrero",
@@ -21,7 +21,7 @@
     "displayName": "EvalDossier",
     "shortDescription": "Verify signed dossiers offline",
     "longDescription": "Verify portable signed evaluation dossiers against caller-supplied expected audience and nonce pins, or exercise the fixed synthetic reference evaluator. The plugin performs no settlement or network requests.",
-    "developerName": "Miguel Herrero Systems",
+    "developerName": "Miguel Herrero",
     "category": "Developer Tools",
     "capabilities": [
       "Offline dossier verification",

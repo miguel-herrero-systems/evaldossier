@@ -1,6 +1,6 @@
 {
   "schemaVersion": "evaldossier.agent-plugin-bundle/0.1",
-  "productVersion": "0.2.0",
+  "productVersion": "0.2.1",
   "protocolVersion": "0.1",
   "nodeTarget": ">=20.11",
   "buildTool": {
@@ -71,21 +71,6 @@
   ],
   "assets": [
     {
-      "path": "fixtures/keys/exporter.private.jwk.json",
-      "bytes": 237,
-      "sha256": "c3489f235c4707f1cb8ed21a2c7c070a38a683e63048feb8f27379be4a1744ac"
-    },
-    {
-      "path": "fixtures/keys/reference-evaluator.private.jwk.json",
-      "bytes": 237,
-      "sha256": "ea3bc4174875a81db23cf807e836a6ffe2dcb0513ed415b313d415841d20c912"
-    },
-    {
-      "path": "fixtures/keys/requester.private.jwk.json",
-      "bytes": 237,
-      "sha256": "060cbe594ccab8a064646cf32d0645dd8ff9cb4c886a12ecb008fe85cba2f0d1"
-    },
-    {
       "path": "fixtures/reference/deliverable.json",
       "bytes": 248,
       "sha256": "f911b962ff89233ef3dd9e908ab1be39d9615016835995f71b97d20fe9714baa"
@@ -102,8 +87,8 @@
     },
     {
       "path": "runtime/shared/evaldossier-local-core.mjs",
-      "bytes": 470728,
-      "sha256": "956796d52c2f22d1a5efa2f9d07a332c4a82b4d5cbdf49f7c5d0da52d86c55f4"
+      "bytes": 471460,
+      "sha256": "f61e96e4ef696fa5af6dc044afbe37cb31a281a3188e005afe9f6900713c2706"
     },
     {
       "path": "runtime/THIRD_PARTY_NOTICES.md",

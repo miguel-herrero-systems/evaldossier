@@ -4,7 +4,7 @@ This standalone Claude Code plugin verifies portable signed EvalDossier director
 
 Prerequisite: Node.js `>=20.11` available as `node`.
 
-The installed plugin includes its complete runtime, schemas and intentionally public test fixtures. It performs no runtime package installation, evaluator discovery, network request, session capture, wallet access, payment movement or settlement.
+The installed plugin includes its complete runtime, schemas and public synthetic reference inputs. It contains no private signing-key material: conformance creates fresh Ed25519 role keys only in memory and writes only their public components into the generated dossier. It performs no runtime package installation, evaluator discovery, network request, session capture, wallet access, payment movement or settlement.
 
 Invoke `/evaldossier:verify` and supply the expected audience and nonce separately from the dossier. Review the bundled [Skill](./skills/verify/SKILL.md), [bundle manifest](./runtime/BUNDLE_MANIFEST.json), [third-party notices](./runtime/THIRD_PARTY_NOTICES.md), and [license](./LICENSE) before use.
 

@@ -4,7 +4,7 @@ This standalone, skills-only Codex plugin verifies portable signed EvalDossier d
 
 Prerequisite: Node.js `>=20.11` available as `node`.
 
-The installed plugin includes its complete runtime, schemas and intentionally public test fixtures. It does not install npm packages at runtime, load third-party evaluators, initiate network requests, capture Codex sessions, access wallets, settle payments or infer audience/nonce pins from a dossier.
+The installed plugin includes its complete runtime, schemas and public synthetic reference inputs. It contains no private signing-key material: conformance creates fresh Ed25519 role keys only in memory and writes only their public components into the generated dossier. It does not install npm packages at runtime, load third-party evaluators, initiate network requests, capture Codex sessions, access wallets, settle payments or infer audience/nonce pins from a dossier.
 
 Invoke `$evaldossier:verify` and supply the expected audience and nonce separately from the dossier. The Skill transports request data through a unique strict-JSON request file created with structured tooling; no user-controlled value enters a shell command and no live stdin is required.
 

@@ -1,6 +1,6 @@
 {
   "name": "evaldossier",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "SDK and offline verifier for portable, signed evaluation dossiers across heterogeneous AI-agent evaluators.",
   "type": "module",
   "private": true,
@@ -71,7 +71,8 @@
     "demo:sdk": "npm run build && node examples/sdk/reference-evaluator.mjs",
     "pack:check": "npm run build && node scripts/check-package.mjs",
     "plugins:build": "npm run build && node scripts/build-agent-plugins.mjs",
-    "plugins:check": "npm run build && node scripts/build-agent-plugins.mjs --check && node scripts/check-agent-plugins.mjs"
+    "plugins:secrets-check": "node scripts/check-agent-plugin-secrets.mjs",
+    "plugins:check": "npm run build && node scripts/build-agent-plugins.mjs --check && node scripts/check-agent-plugins.mjs && npm run plugins:secrets-check"
   },
   "dependencies": {
     "ajv": "^8.17.1",

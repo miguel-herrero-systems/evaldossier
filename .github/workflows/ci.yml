@@ -25,4 +25,6 @@ jobs:
       - run: npm run demo:sdk
       - run: npm run pack:check
       - run: npm run plugins:check
+      - name: Independently reject private key material in agent payloads
+        run: node scripts/check-agent-plugin-secrets.mjs
       - run: npm audit --audit-level=high
