@@ -1,6 +1,6 @@
 # Codex integration specification
 
-Status: standalone skills-only plugin `0.2.0` implemented and locally validated; repository and OpenAI Plugins Directory publication remain separate release decisions.
+Status: standalone skills-only plugin `0.2.1` implemented and locally validated; repository and OpenAI Plugins Directory publication remain separate release decisions.
 
 ## Decision
 
@@ -15,7 +15,7 @@ plugins/evaldossier/
 ├── .codex-plugin/plugin.json
 ├── LICENSE
 ├── README.md
-├── fixtures/                       # five public synthetic fixtures only
+├── fixtures/                       # two public reference inputs; no private keys
 ├── runtime/
 │   ├── BUNDLE_MANIFEST.json
 │   ├── THIRD_PARTY_NOTICES.md
@@ -93,7 +93,7 @@ Projection `evaldossier.model-safe-projection/0.2` separates operation `status` 
 
 ## Runtime and trust boundary
 
-The plugin adds no owned network client, listener, child process, secrets, evaluator discovery, wallet or economic action. It rejects dynamic evaluator/module options. The surrounding Codex process, plugin manager/cache, host Node executable, structured tool transport and a dossier snapshot assumed unchanged during verification remain trusted external boundaries.
+The plugin adds no owned network client, listener, child process, packaged private key, evaluator discovery, wallet or economic action. It rejects dynamic evaluator/module options. Synthetic conformance generates fresh Ed25519 role keys in memory and persists only public components in its output dossier. The surrounding Codex process, plugin manager/cache, host Node executable, structured tool transport and a dossier snapshot assumed unchanged during verification remain trusted external boundaries.
 
 The bundled Ajv dependency generates validator functions at runtime only from committed protocol and synthetic-reference schemas. EvalDossier does not execute caller-supplied code or discover evaluator modules, but the current bundle does not claim an absolute absence of runtime code generation.
 
@@ -109,7 +109,7 @@ codex plugin marketplace add miguel-herrero-systems/evaldossier
 codex plugin add evaldossier@hrevn-evaldossier
 ```
 
-The implemented checks build the common payload twice and require byte equality, copy each plugin to a hostile unrelated path, run without repository `dist/` or `node_modules`, compare Codex and Claude verification results, preserve model-judgment semantics, reject wrong pins and shell-like paths, run conformance, scan the exact tree and verify every generated digest.
+The implemented checks build the common payload twice and require byte equality, independently reject private key material in CI, copy each plugin to a hostile unrelated path, run without repository `dist/` or `node_modules`, compare Codex and Claude verification results, preserve model-judgment semantics, reject wrong pins and shell-like paths, run conformance with fresh in-memory keys, scan the exact tree and verify every generated digest. Live conformance dossiers are intentionally not byte-reproducible; their declared checks and typed semantics are.
 
 OpenAI public submission is a later release step. The plugin is intentionally Skills-only and contains no MCP/app server. Submission materials must include the required positive and negative test cases and pass OpenAI's security and identity review.
 
@@ -124,5 +124,5 @@ OpenAI public submission is a later release step. The plugin is intentionally Sk
 7. Model judgment remains inconclusive and economic action remains out of scope.
 8. Hostile signed text and raw errors never enter model-facing output.
 9. Codex and Claude produce equivalent verification semantics except for host identity.
-10. The generated payload contains no local paths, internal strategy documents, external evaluator probes, hooks, MCP or secrets other than explicitly public synthetic test keys.
+10. The generated payload contains no local paths, internal strategy documents, external evaluator probes, hooks, MCP or private signing-key material; public verification JWKs remain allowed.
 11. Public marketplace submission remains gated on a final clean-cache install and release review.
