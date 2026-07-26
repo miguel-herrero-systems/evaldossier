@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { access, link, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  link,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,6 +35,23 @@ const claudePluginRoot = join(
 const claudeScript = join(claudePluginRoot, "scripts", "evaldossier-local.mjs");
 const claudeSkill = join(claudePluginRoot, "skills", "verify", "SKILL.md");
 const claudeManifest = join(claudePluginRoot, ".claude-plugin", "plugin.json");
+const codexStandaloneSkill = join(
+  projectRoot,
+  "plugins",
+  "evaldossier",
+  "skills",
+  "verify",
+  "SKILL.md",
+);
+const codexStandaloneManifest = join(
+  projectRoot,
+  "plugins",
+  "evaldossier",
+  ".codex-plugin",
+  "plugin.json",
+);
+const claudeParentGuard =
+  "test ! -L ./.evaldossier-local && mkdir -p ./.evaldossier-local && test -d ./.evaldossier-local && test ! -L ./.evaldossier-local";
 
 interface ProcessResult {
   code: number | null;
@@ -55,6 +81,28 @@ function runIntegration(script: string, args: string[]): Promise<ProcessResult> 
   return new Promise((resolveResult, reject) => {
     const child = spawn(process.execPath, [script, ...args], {
       cwd: projectRoot,
+      env: { PATH: process.env.PATH ?? "" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => resolveResult({ code, stdout, stderr }));
+  });
+}
+
+function runShellCommand(command: string, cwd: string): Promise<ProcessResult> {
+  return new Promise((resolveResult, reject) => {
+    const child = spawn("/bin/sh", ["-c", command], {
+      cwd,
       env: { PATH: process.env.PATH ?? "" },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -337,6 +385,39 @@ test("Codex and Claude Code conformance agree on protocol semantics", async (t) 
   assert.equal(claudeOutput.summary?.economicAction, "OUT_OF_SCOPE");
 });
 
+test("the published Codex v0.2.1 conformance transport is independent of Claude's fixed parent", async () => {
+  const [skill, manifestText] = await Promise.all([
+    readFile(codexStandaloneSkill, "utf8"),
+    readFile(codexStandaloneManifest, "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestText) as Record<string, unknown>;
+
+  assert.equal(manifest.version, "0.2.1");
+  assert.match(skill, /mktemp -d \/tmp\/evaldossier-request\.XXXXXXXX/u);
+  assert.match(skill, /choose a new absolute local output directory/u);
+  assert.match(skill, /conformance-request --request/u);
+  assert.doesNotMatch(skill, /\.evaldossier-local/u);
+  assert.doesNotMatch(skill, /conformance --output/u);
+});
+
+test("Claude conformance preserves an existing output directory", async (t) => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "evaldossier-claude-existing-"));
+  t.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const outputDirectory = join(temporaryRoot, "conformance-output");
+  await writeFile(outputDirectory, "not a directory", "utf8");
+
+  const result = await runIntegration(claudeScript, [
+    "conformance",
+    "--output",
+    outputDirectory,
+    "--json",
+  ]);
+
+  assert.equal(result.code, 1);
+  assert.equal(outputOf(result).error?.code, "CONFORMANCE_FAILED");
+  assert.equal(await readFile(outputDirectory, "utf8"), "not a directory");
+});
+
 test("the Claude plugin declares a manual, non-preapproved, fixed-command Skill", async () => {
   const manifest = JSON.parse(await readFile(claudeManifest, "utf8")) as Record<string, unknown>;
   const skill = await readFile(claudeSkill, "utf8");
@@ -344,7 +425,7 @@ test("the Claude plugin declares a manual, non-preapproved, fixed-command Skill"
 
   assert.equal(manifest.name, "evaldossier");
   assert.equal(manifest.license, "MIT");
-  assert.equal(manifest.version, "0.2.1");
+  assert.equal(manifest.version, "0.2.2");
   assert.match(skill, /^---\n[\s\S]*disable-model-invocation: true\n/u);
   assert.match(skill, /disallowed-tools:/u);
   assert.doesNotMatch(skill, /^allowed-tools:/mu);
@@ -354,14 +435,21 @@ test("the Claude plugin declares a manual, non-preapproved, fixed-command Skill"
   assert.match(skill, /verify-request --request/u);
   assert.match(skill, /CALLER_DECLARED_NOT_VERIFIED/u);
   assert.match(skill, /economicAction.*OUT_OF_SCOPE/u);
+  assert.match(skill, /Any separate filesystem audit belongs to the external test harness/u);
+  assert.match(skill, /current working directory/u);
+  assert.match(skill, /cannot enforce surrounding host-model behavior/u);
+  assert.match(skill, /Do not add any other inspection of the parent or output directory/u);
+  assert.match(skill, /Do not append `echo`, a success marker, a redirection/u);
+  assert.match(skill, /The Bash tool result itself reports success or failure/u);
   assert.doesNotMatch(skill, /\bCLAUDE_(?:PROJECT_DIR|SESSION_ID)\b/u);
   const shellCommands = skill
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => line.startsWith("mkdir ") || line.startsWith("node "));
+    .filter((line) => line.startsWith("test ! -L ") || line.startsWith("node "));
   assert.deepEqual(shellCommands, [
-    "mkdir -p ./.evaldossier-local",
+    claudeParentGuard,
     "node ./integrations/claude-code/evaldossier-plugin/scripts/evaldossier-local.mjs verify-request --request ./.evaldossier-local/claude-code-request.json --json",
+    claudeParentGuard,
     "node ./integrations/claude-code/evaldossier-plugin/scripts/evaldossier-local.mjs conformance --output ./.evaldossier-local/conformance-output --json",
   ]);
   for (const command of shellCommands) {
@@ -373,47 +461,84 @@ test("the Claude plugin declares a manual, non-preapproved, fixed-command Skill"
 });
 
 test(
-  "the Claude directory command remains inert in a project path containing shell syntax",
+  "the Claude parent guard is rooted in cwd and remains inert in a path containing shell syntax",
   { skip: process.platform === "win32" },
   async () => {
     const skill = await readFile(claudeSkill, "utf8");
-    const mkdirCommand = skill
+    const parentGuard = skill
       .split("\n")
       .map((line) => line.trim())
-      .find((line) => line.startsWith("mkdir "));
-    assert.equal(mkdirCommand, "mkdir -p ./.evaldossier-local");
+      .find((line) => line.startsWith("test ! -L "));
+    assert.equal(parentGuard, claudeParentGuard);
 
     const hostileProjectRoot = await mkdtemp(
       join(tmpdir(), "evaldossier-claude-$(touch marker)-"),
     );
     try {
-      const result = await new Promise<ProcessResult>((resolveResult, reject) => {
-        const child = spawn("/bin/sh", ["-c", mkdirCommand], {
-          cwd: hostileProjectRoot,
-          env: { PATH: process.env.PATH ?? "" },
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-        let stdout = "";
-        let stderr = "";
-        child.stdout.setEncoding("utf8");
-        child.stderr.setEncoding("utf8");
-        child.stdout.on("data", (chunk: string) => {
-          stdout += chunk;
-        });
-        child.stderr.on("data", (chunk: string) => {
-          stderr += chunk;
-        });
-        child.on("error", reject);
-        child.on("close", (code) => resolveResult({ code, stdout, stderr }));
-      });
+      const first = await runShellCommand(parentGuard, hostileProjectRoot);
+      const second = await runShellCommand(parentGuard, hostileProjectRoot);
 
-      assert.equal(result.code, 0, result.stderr);
+      assert.equal(first.code, 0, first.stderr);
+      assert.equal(second.code, 0, second.stderr);
       await access(join(hostileProjectRoot, ".evaldossier-local"));
       await assert.rejects(access(join(hostileProjectRoot, "marker")), {
         code: "ENOENT",
       });
     } finally {
       await rm(hostileProjectRoot, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "the Claude parent guard fails closed on a regular file or symbolic link",
+  { skip: process.platform === "win32" },
+  async () => {
+    const regularFileRoot = await mkdtemp(join(tmpdir(), "evaldossier-claude-file-"));
+    const symlinkRoot = await mkdtemp(join(tmpdir(), "evaldossier-claude-link-"));
+    const symlinkTarget = await mkdtemp(join(tmpdir(), "evaldossier-claude-link-target-"));
+    try {
+      const regularFile = join(regularFileRoot, ".evaldossier-local");
+      await writeFile(regularFile, "preserve me", "utf8");
+      const regularFileResult = await runShellCommand(claudeParentGuard, regularFileRoot);
+      assert.notEqual(regularFileResult.code, 0);
+      assert.equal(await readFile(regularFile, "utf8"), "preserve me");
+
+      await symlink(symlinkTarget, join(symlinkRoot, ".evaldossier-local"));
+      const symlinkResult = await runShellCommand(claudeParentGuard, symlinkRoot);
+      assert.notEqual(symlinkResult.code, 0);
+      await assert.rejects(access(join(symlinkTarget, "conformance-output")), {
+        code: "ENOENT",
+      });
+    } finally {
+      await Promise.all([
+        rm(regularFileRoot, { recursive: true, force: true }),
+        rm(symlinkRoot, { recursive: true, force: true }),
+        rm(symlinkTarget, { recursive: true, force: true }),
+      ]);
+    }
+  },
+);
+
+test(
+  "the Claude parent guard fails closed when its cwd is not writable",
+  {
+    skip:
+      process.platform === "win32" ||
+      (typeof process.getuid === "function" && process.getuid() === 0),
+  },
+  async () => {
+    const readOnlyRoot = await mkdtemp(join(tmpdir(), "evaldossier-claude-readonly-"));
+    try {
+      await chmod(readOnlyRoot, 0o500);
+      const result = await runShellCommand(claudeParentGuard, readOnlyRoot);
+      assert.notEqual(result.code, 0);
+      await assert.rejects(access(join(readOnlyRoot, ".evaldossier-local")), {
+        code: "ENOENT",
+      });
+    } finally {
+      await chmod(readOnlyRoot, 0o700);
+      await rm(readOnlyRoot, { recursive: true, force: true });
     }
   },
 );

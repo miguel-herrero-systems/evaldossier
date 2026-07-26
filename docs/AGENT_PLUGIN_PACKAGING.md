@@ -87,6 +87,7 @@ mutating either plugin root, and then:
 - preserves `MODEL_JUDGMENT → INCONCLUSIVE` and `economicAction: OUT_OF_SCOPE`;
 - rejects wrong pins, malformed legacy stdin documents, shell-like dossier paths, and linked request files;
 - runs fixed conformance through both plugins;
+- requires Claude's fixed parent guard to reject regular-file and symbolic-link transport parents while resolving the slot from the invocation working directory;
 - asserts that shell syntax in paths never creates a marker file.
 
 The Codex and Claude official manifest validators are also run before release. Clean marketplace-cache installation remains a distinct release gate because it mutates host plugin configuration and exercises each host's downloader/cache rather than the payload alone.
@@ -97,7 +98,7 @@ The Codex and Claude official manifest validators are also run before release. C
 - Protocol: `0.1`.
 - Model-safe projection: `0.2`.
 - Codex plugin: `0.2.1`.
-- Claude Code plugin: `0.2.1`.
+- Claude Code plugin: `0.2.2`.
 
 Any change to the common generated payload requires rebuilding and bumping both plugin versions before publication. A host-only manifest or Skill change may bump only that host plugin, but the common-payload equality gate must still pass.
 
