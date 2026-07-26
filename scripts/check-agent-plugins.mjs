@@ -241,7 +241,7 @@ const [codexPluginManifest, claudePluginManifest] = await Promise.all([
   ),
 ]);
 assert.equal(codexPluginManifest.version, "0.2.1");
-assert.equal(claudePluginManifest.version, "0.2.1");
+assert.equal(claudePluginManifest.version, "0.2.2");
 
 const [codexInventory, claudeInventory] = await Promise.all([
   inventory(codexPluginRoot),

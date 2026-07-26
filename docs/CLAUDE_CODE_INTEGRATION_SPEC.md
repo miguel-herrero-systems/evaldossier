@@ -1,6 +1,6 @@
 # Claude Code integration specification
 
-Status: standalone plugin `0.2.1` implemented and locally validated; repository and public-directory publication remain separate release decisions.
+Status: standalone plugin `0.2.2` implemented, transferred from the isolated laboratory and validated from a clean marketplace cache; repository and public-directory publication remain separate release decisions.
 
 ## Decision
 
@@ -64,7 +64,15 @@ The fixed request file is one non-secret transport slot. Concurrent invocations 
 - validates both pin-source labels before resolving or reading the dossier;
 - never reflects the request path, dossier path, raw dossier text or raw downstream errors into model-visible output.
 
-These controls do not prove that Claude obeyed the Skill, that the parent directory was not redirected before Write, that the request is confidential, or that a privileged concurrent mutator cannot race the workspace. Use a trusted local workspace and never place secrets in the request.
+Every relative transport and output path is resolved from Claude Code's current working directory when the Skill is invoked. Claude Code can preserve a directory change across Bash calls, so this can differ from the launch-time project root. The Skill requires the intended trusted local workspace to remain current throughout the workflow. See [Claude Code Bash tool behavior](https://code.claude.com/docs/en/tools-reference#bash-tool-behavior).
+
+Before Write or conformance, the Skill prescribes one fixed, argument-free guard:
+
+```text
+test ! -L ./.evaldossier-local && mkdir -p ./.evaldossier-local && test -d ./.evaldossier-local && test ! -L ./.evaldossier-local
+```
+
+It accepts an absent path or an existing real directory and fails on a regular file or symbolic link. These controls do not prove that Claude obeyed the Skill, that the path remains unchanged after the guard, that the request is confidential, or that a privileged concurrent mutator cannot race the workspace. Use a trusted local workspace and never place secrets in the request.
 
 ## Pin and evidentiary semantics
 
@@ -84,6 +92,8 @@ Projection `evaldossier.model-safe-projection/0.2` separates operation `status` 
 
 Invoke `/evaldossier:verify`. The Skill sets `disable-model-invocation: true`, defines no `allowed-tools`, and blocks common dossier-reading, network, editing, delegation and nested-Skill tools for the invocation turn. Those restrictions are host-enforced behavioral controls, not cryptographic proof about the surrounding Claude Code process.
 
+EvalDossier-owned launcher code performs no workspace browsing or pre/post audit. The Skill instructs the host model to copy the fixed commands byte for byte and not to append a success marker, redirection, diagnostic or other shell fragment. This is behavioral guidance, not enforcement: the plugin cannot control surrounding host-model behavior.
+
 The plugin adds no hooks, MCP, network client, child process, packaged private key, wallet or economic action. Synthetic conformance generates fresh Ed25519 role keys in memory and persists only public components in its output dossier. Its bundled Ajv dependency generates validator functions only from committed protocol and synthetic-reference schemas. It does not execute caller-supplied code or discover evaluator modules, but it does not claim an absolute absence of runtime code generation.
 
 ## Validation and installation
@@ -99,7 +109,7 @@ claude plugin marketplace add miguel-herrero-systems/evaldossier
 claude plugin install evaldossier@hrevn-evaldossier
 ```
 
-The implemented checks independently reject private key material in CI, copy the plugin to a hostile unrelated path, run without repository `dist/` or `node_modules`, compare its verification semantics with Codex, exercise formal and model-judgment dossiers, reject wrong pins and linked request files, run conformance with fresh in-memory keys, scan the exact file tree and verify every generated digest. Live conformance dossier bytes differ by design; declared semantics remain equivalent.
+The implemented checks independently reject private key material in CI, copy the plugin to a hostile unrelated path, run without repository `dist/` or `node_modules`, compare its verification semantics with Codex, exercise formal and model-judgment dossiers, reject wrong pins and linked request files, reject a regular-file or symbolic-link transport parent, prove that the relative slot is rooted in the invocation working directory, preserve an existing conformance output, run conformance with fresh in-memory keys, scan the exact file tree and verify every generated digest. Live conformance dossier bytes differ by design; declared semantics remain equivalent.
 
 ## Acceptance criteria
 
@@ -112,4 +122,5 @@ The implemented checks independently reject private key material in CI, copy the
 7. Codex and Claude produce equivalent verification semantics except for host identity.
 8. Model judgment remains inconclusive and economic action remains out of scope.
 9. The generated payload contains no local paths, internal strategy documents, external evaluator probes, hooks, MCP or private signing-key material; public verification JWKs remain allowed.
-10. Public marketplace submission remains gated on a final clean-cache install and release review.
+10. Public marketplace submission remains gated on a final clean-cache install and release review. A fresh workspace must run conformance without requiring the caller to pre-create `./.evaldossier-local`.
+11. The fixed parent guard fails closed if `./.evaldossier-local` is a regular file or symbolic link, and all relative paths are explicitly scoped to the invocation working directory.
