@@ -15,10 +15,29 @@ require an API key, or authorize payment.
 
 Package and protocol identifiers serve different scopes:
 
-- npm package: `@miguel-herrero-systems/evaldossier-openclaw@0.2.1`;
+- npm package: `@miguel-herrero-systems/evaldossier-openclaw@0.2.2`;
 - OpenClaw manifest/config ID: `evaldossier`;
 - result integration ID: `evaldossier-openclaw-plugin/0.1`;
 - EvalDossier protocol: `evaldossier/0.1`.
+
+## Recommended host allowlist
+
+After installation, explicitly add the OpenClaw manifest ID `evaldossier` to
+the host's `plugins.allow` list:
+
+```json
+{
+  "plugins": {
+    "allow": ["evaldossier"]
+  }
+}
+```
+
+If the list already contains trusted plugins, preserve those entries and
+append `evaldossier` rather than replacing the list. A fresh OpenClaw profile
+may load an installed plugin while warning that `plugins.allow` is empty;
+pinning the allowed ID is recommended host hardening, not an additional
+capability or a requirement imposed by EvalDossier.
 
 The request file uses `evaldossier.local-verification-request/0.1`:
 

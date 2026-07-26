@@ -4,7 +4,7 @@
 
 **Offline-verifiable evaluation attestations and portable dossiers for heterogeneous AI-agent evaluators.**
 
-> Status: SDK `v0.2.1` · protocol `evaldossier/0.1` · Codex plugin `v0.2.1` · Claude Code plugin `v0.2.2` · OpenClaw plugin `v0.2.1` · offline-first · settlement-independent
+> Status: SDK `v0.2.1` · protocol `evaldossier/0.1` · Codex plugin `v0.2.1` · Claude Code plugin `v0.2.2` · OpenClaw plugin `v0.2.2` · offline-first · settlement-independent
 
 EvalDossier is a settlement-independent TypeScript SDK and reference implementation for packaging evaluator outputs, evidence, and signatures into dossiers that another system can verify offline. It is designed for AI-agent and agent-commerce workflows that must distinguish formal proof from model judgment or self-assertion before applying any economic policy.
 

@@ -1,6 +1,6 @@
 {
   "name": "@miguel-herrero-systems/evaldossier-openclaw",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Offline integrity checks for signed EvalDossier evaluation dossiers in OpenClaw",
   "type": "module",
   "license": "MIT",
