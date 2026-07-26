@@ -28,3 +28,19 @@ jobs:
       - name: Independently reject private key material in agent payloads
         run: node scripts/check-agent-plugin-secrets.mjs
       - run: npm audit --audit-level=high
+
+  openclaw-plugin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+          cache: npm
+          cache-dependency-path: openclaw-plugins/evaldossier/package-lock.json
+      - name: Install OpenClaw plugin development dependencies
+        run: npm ci --prefix openclaw-plugins/evaldossier --ignore-scripts --no-audit --no-fund
+      - run: npm run openclaw-plugin:check
+      - name: Independently reject private key material in the OpenClaw package
+        run: node scripts/check-agent-plugin-secrets.mjs openclaw-plugins/evaldossier

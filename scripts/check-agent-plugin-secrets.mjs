@@ -8,6 +8,7 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRoots = [
   join(projectRoot, "plugins", "evaldossier"),
   join(projectRoot, "claude-plugins", "evaldossier"),
+  join(projectRoot, "openclaw-plugins", "evaldossier"),
 ];
 const privateFilenamePattern = /(?:^|[._-])private(?:[._-]|$)/iu;
 const privatePemPattern =
@@ -21,6 +22,9 @@ async function listRegularFiles(root) {
   const files = [];
   async function walk(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (directory === root && entry.name === "node_modules") {
+        continue;
+      }
       const path = join(directory, entry.name);
       const metadata = await lstat(path);
       if (metadata.isSymbolicLink()) {

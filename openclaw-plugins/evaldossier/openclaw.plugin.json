@@ -1,0 +1,13 @@
+{
+  "id": "evaldossier",
+  "name": "EvalDossier for OpenClaw",
+  "description": "Checks signed evaluation dossier integrity and declared evidentiary basis locally, without invoking an LLM.",
+  "version": "0.2.1",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false
+  }
+}
