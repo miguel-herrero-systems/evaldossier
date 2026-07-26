@@ -120,7 +120,7 @@ The Codex and Claude official manifest validators are also run before release. C
 - Model-safe projection: `0.2`.
 - Codex plugin: `0.2.1`.
 - Claude Code plugin: `0.2.2`.
-- OpenClaw plugin: `0.2.1`.
+- OpenClaw plugin: `0.2.2`.
 
 Any change to the common generated payload requires rebuilding and bumping every
 published host package that carries it. A host-only manifest, Skill, or native
