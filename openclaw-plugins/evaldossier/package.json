@@ -1,0 +1,51 @@
+{
+  "name": "@miguel-herrero-systems/evaldossier-openclaw",
+  "version": "0.2.1",
+  "description": "Offline integrity checks for signed EvalDossier evaluation dossiers in OpenClaw",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "fixtures",
+    "runtime",
+    "schemas",
+    "scripts",
+    "LICENSE",
+    "README.md",
+    "openclaw.plugin.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test tests/native-command.test.mjs",
+    "pack:check": "npm pack --dry-run"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.7.1-2 <2027"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "openclaw": "2026.7.1-2",
+    "typescript": "^5.9.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.7.1-2",
+      "minGatewayVersion": "2026.7.1-2"
+    },
+    "build": {
+      "openclawVersion": "2026.7.1-2",
+      "pluginSdkVersion": "2026.7.1-2"
+    },
+    "install": {
+      "minHostVersion": ">=2026.7.1-2"
+    }
+  }
+}

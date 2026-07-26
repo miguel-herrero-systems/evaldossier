@@ -6,7 +6,7 @@ An installed EvalDossier plugin must work without trusting or locating the sourc
 
 This packaging layer adds distribution, not new evaluation semantics. It does not add an API, MCP server, hook, remote evaluator, secret, wallet or settlement action.
 
-## Two roots, one payload
+## Three hosts, one payload line
 
 Codex and Claude Code use separate installable roots because their manifests, Skill frontmatter and safe transports differ:
 
@@ -27,6 +27,18 @@ schemas/
 The only host-specific files are manifests, READMEs, Skills and thin launchers. No generated file is edited manually.
 
 The Codex root additionally carries one content-addressed, synthetic model-judgment reviewer fixture under `skills/verify/fixtures/`. It is host-specific submission material rather than part of the common runtime payload. The exact-tree gate requires it to remain byte-identical to `examples/model-judgment/` and recomputes its adjacent `SHA256SUMS` manifest.
+
+OpenClaw uses a third root:
+
+```text
+openclaw-plugins/evaldossier/ # native OpenClaw code plugin
+```
+
+It packages the same generated payload line behind a native authenticated
+`registerCommand` transport. `/evaldossier-check` bypasses the LLM and accepts
+only a relative path to a strict request file confined to the active agent
+workspace. The package neither selects nor invokes a model provider and has no
+runtime dependency on Anthropic, Claude, or any other model API.
 
 ## Build closure
 
@@ -70,9 +82,9 @@ This is narrower than arbitrary dynamic code: the plugins do not accept caller-s
 
 ## Verification gates
 
-`npm run plugins:check` compiles the project, generates two fresh candidates only
-in temporary storage, checks determinism and committed-payload drift without
-mutating either plugin root, and then:
+`npm run plugins:check` compiles the project, generates two fresh Codex/Claude
+candidates only in temporary storage, checks determinism and committed-payload
+drift without mutating either root, and then:
 
 - enforces an exact file allowlist for both plugin roots;
 - requires the Codex reviewer fixture and manifest to match the canonical model-judgment example byte for byte;
@@ -90,6 +102,15 @@ mutating either plugin root, and then:
 - requires Claude's fixed parent guard to reject regular-file and symbolic-link transport parents while resolving the slot from the invocation working directory;
 - asserts that shell syntax in paths never creates a marker file.
 
+`npm run openclaw-plugin:check` separately type-checks and builds the native
+OpenClaw package, executes its deterministic 5-positive/6-negative command
+gate, and checks its npm pack inventory. CI runs it in a separate Node 24.15
+job because OpenClaw's own supported Node range is narrower than EvalDossier's
+Node `>=20.11` SDK range. The job installs development dependencies with
+lifecycle scripts disabled and independently scans the complete package root
+for private-key material. The published package has no runtime npm
+dependencies.
+
 The Codex and Claude official manifest validators are also run before release. Clean marketplace-cache installation remains a distinct release gate because it mutates host plugin configuration and exercises each host's downloader/cache rather than the payload alone.
 
 ## Versioning
@@ -99,8 +120,17 @@ The Codex and Claude official manifest validators are also run before release. C
 - Model-safe projection: `0.2`.
 - Codex plugin: `0.2.1`.
 - Claude Code plugin: `0.2.2`.
+- OpenClaw plugin: `0.2.1`.
 
-Any change to the common generated payload requires rebuilding and bumping both plugin versions before publication. A host-only manifest or Skill change may bump only that host plugin, but the common-payload equality gate must still pass.
+Any change to the common generated payload requires rebuilding and bumping every
+published host package that carries it. A host-only manifest, Skill, or native
+transport change may bump only that host package, but its payload-drift gate
+must still pass.
+
+Host versions are independent. A host-only correction does not make another
+host's lower number stale. The OpenClaw package version describes its packaged
+payload line and native transport; it does not imply byte-identical host
+instructions.
 
 ## Ephemeral conformance keys
 

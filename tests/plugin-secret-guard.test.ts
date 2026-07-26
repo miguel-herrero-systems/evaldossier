@@ -78,3 +78,10 @@ test("CI invokes the plugin secret guard directly outside the build command", as
   const workflow = await readFile(ciWorkflow, "utf8");
   assert.match(workflow, /run: node scripts\/check-agent-plugin-secrets\.mjs/u);
 });
+
+test("the default secret guard covers Codex, Claude Code and OpenClaw payloads", async () => {
+  const guard = await readFile(guardScript, "utf8");
+  assert.match(guard, /join\(projectRoot, "plugins", "evaldossier"\)/u);
+  assert.match(guard, /join\(projectRoot, "claude-plugins", "evaldossier"\)/u);
+  assert.match(guard, /join\(projectRoot, "openclaw-plugins", "evaldossier"\)/u);
+});

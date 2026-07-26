@@ -72,6 +72,7 @@
     "pack:check": "npm run build && node scripts/check-package.mjs",
     "plugins:build": "npm run build && node scripts/build-agent-plugins.mjs",
     "plugins:secrets-check": "node scripts/check-agent-plugin-secrets.mjs",
+    "openclaw-plugin:check": "npm run check --prefix openclaw-plugins/evaldossier && npm run build --prefix openclaw-plugins/evaldossier && npm test --prefix openclaw-plugins/evaldossier && npm run pack:check --prefix openclaw-plugins/evaldossier",
     "plugins:check": "npm run build && node scripts/build-agent-plugins.mjs --check && node scripts/check-agent-plugins.mjs && npm run plugins:secrets-check"
   },
   "dependencies": {
